@@ -1,0 +1,338 @@
+import React, { useState } from 'react';
+import {
+  Undo2,
+  Redo2,
+  Play,
+  Pause,
+  SkipForward,
+  RotateCcw,
+  Download,
+  Layers,
+  Box,
+  Camera,
+  Sun,
+  Moon,
+  Eye,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Maximize2,
+  Grid3X3,
+  Ruler,
+  Waves,
+} from 'lucide-react';
+import { useEditor } from '../../context/EditorContext';
+import type { ViewMode, CameraPreset, LightingPreset } from '../../types/editor';
+
+export const TopToolbar: React.FC = () => {
+  const {
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    simulation,
+    toggleSimulation,
+    stepSimulation,
+    setSimulationSpeed,
+    viewportSettings,
+    updateViewportSettings,
+    layoutSettings,
+    toggleLeftSidebar,
+    toggleRightSidebar,
+    resetScene,
+    exportProjectJSON,
+  } = useEditor();
+
+  const [showFileMenu, setShowFileMenu] = useState(false);
+
+  const setViewMode = (viewMode: ViewMode) => {
+    updateViewportSettings((prev) => ({ ...prev, viewMode }));
+  };
+
+  const setCameraPreset = (cameraPreset: CameraPreset) => {
+    updateViewportSettings((prev) => ({ ...prev, cameraPreset }));
+  };
+
+  const setLightingPreset = (lightingPreset: LightingPreset) => {
+    updateViewportSettings((prev) => ({ ...prev, lightingPreset }));
+  };
+
+  const toggleGrid = () => {
+    updateViewportSettings((prev) => ({ ...prev, showGrid: !prev.showGrid }));
+  };
+
+  const toggleMeasurements = () => {
+    updateViewportSettings((prev) => ({
+      ...prev,
+      showMeasurements: !prev.showMeasurements,
+    }));
+  };
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  // Format simulated minutes into HH:MM
+  const formatSimTime = (mins: number) => {
+    const totalMinutes = Math.floor(mins);
+    const hours = Math.floor(totalMinutes / 60);
+    const remainingMins = totalMinutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${remainingMins.toString().padStart(2, '0')}:00`;
+  };
+
+  return (
+    <header id="cad-top-toolbar" className="cad-toolbar">
+      {/* 1. Left Section: Logo, File Menu, Undo/Redo, Left Sidebar Toggle */}
+      <div className="toolbar-section toolbar-left">
+        <button
+          id="btn-toggle-left-sidebar"
+          className="toolbar-btn icon-only"
+          onClick={toggleLeftSidebar}
+          title={layoutSettings.leftSidebarOpen ? 'Hide Library (Ctrl+[)' : 'Show Library'}
+          aria-label="Toggle Left Sidebar"
+        >
+          {layoutSettings.leftSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        </button>
+
+        <div className="cad-brand">
+          <div className="cad-logo-glyph">
+            <Waves size={16} />
+          </div>
+          <span className="cad-app-name">AQUARIUM CAD</span>
+          <span className="cad-version-tag">v0.1</span>
+        </div>
+
+        <div className="toolbar-separator" />
+
+        <div className="dropdown-wrapper">
+          <button
+            id="btn-file-menu"
+            className="toolbar-btn"
+            onClick={() => setShowFileMenu(!showFileMenu)}
+            title="Project File Menu"
+          >
+            <span>Project</span>
+          </button>
+
+          {showFileMenu && (
+            <div className="toolbar-dropdown-menu" onMouseLeave={() => setShowFileMenu(false)}>
+              <button
+                id="menu-reset-scene"
+                className="dropdown-item"
+                onClick={() => {
+                  resetScene();
+                  setShowFileMenu(false);
+                }}
+              >
+                <RotateCcw size={14} />
+                <span>Reset to Default Tank</span>
+              </button>
+              <button
+                id="menu-export-json"
+                className="dropdown-item"
+                onClick={() => {
+                  exportProjectJSON();
+                  setShowFileMenu(false);
+                }}
+              >
+                <Download size={14} />
+                <span>Export Scene Config (.json)</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Undo / Redo */}
+        <button
+          id="btn-undo"
+          className="toolbar-btn icon-only"
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+        >
+          <Undo2 size={15} />
+        </button>
+
+        <button
+          id="btn-redo"
+          className="toolbar-btn icon-only"
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y)"
+          aria-label="Redo"
+        >
+          <Redo2 size={15} />
+        </button>
+      </div>
+
+      {/* 2. Center Section: Simulation Transport Bar */}
+      <div className="toolbar-section toolbar-center">
+        <div className="simulation-transport-bar">
+          <button
+            id="btn-play-pause-simulation"
+            className={`transport-btn ${simulation.isRunning ? 'running' : 'paused'}`}
+            onClick={toggleSimulation}
+            title={simulation.isRunning ? 'Pause Simulation (Space)' : 'Start Simulation (Space)'}
+          >
+            {simulation.isRunning ? <Pause size={14} /> : <Play size={14} />}
+            <span>{simulation.isRunning ? 'PAUSE' : 'RUN'}</span>
+          </button>
+
+          <button
+            id="btn-step-simulation"
+            className="transport-btn secondary"
+            onClick={stepSimulation}
+            title="Advance +5 Simulated Minutes"
+          >
+            <SkipForward size={13} />
+            <span>+5m</span>
+          </button>
+
+          {/* Speed Multiplier Selectors */}
+          <div className="speed-pills">
+            {[0.5, 1.0, 2.0, 5.0].map((spd) => (
+              <button
+                key={spd}
+                id={`btn-speed-${spd}x`}
+                className={`speed-pill ${simulation.speed === spd ? 'active' : ''}`}
+                onClick={() => setSimulationSpeed(spd)}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+
+          {/* Time Counter Readout */}
+          <div className="sim-clock-display" title="Total Simulated Cycle Duration">
+            <span className="clock-label">CYCLE:</span>
+            <span className="clock-time">{formatSimTime(simulation.simulatedMinutes)}</span>
+          </div>
+
+          {/* Live Turnover Pill */}
+          <div className="turnover-pill" title="Total Filter Turnover per Hour">
+            <span className="pill-dot" />
+            <span>{simulation.calculatedTurnover}x / hr</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Right Section: View Modes, Camera Presets, Lighting, Right Sidebar Toggle */}
+      <div className="toolbar-section toolbar-right">
+        {/* View Mode (Solid / Wireframe / X-Ray) */}
+        <div className="button-group" title="Viewport Shading Mode">
+          <button
+            id="btn-view-rendered"
+            className={`segmented-btn ${viewportSettings.viewMode === 'rendered' ? 'active' : ''}`}
+            onClick={() => setViewMode('rendered')}
+            title="Solid Shaded View"
+          >
+            <Box size={14} />
+          </button>
+          <button
+            id="btn-view-wireframe"
+            className={`segmented-btn ${viewportSettings.viewMode === 'wireframe' ? 'active' : ''}`}
+            onClick={() => setViewMode('wireframe')}
+            title="Wireframe Mesh View"
+          >
+            <Layers size={14} />
+          </button>
+        </div>
+
+        {/* Camera Preset Dropdown */}
+        <div className="camera-select-wrapper">
+          <Camera size={13} className="camera-icon-hint" />
+          <select
+            id="select-camera-preset"
+            className="camera-dropdown"
+            value={viewportSettings.cameraPreset}
+            onChange={(e) => setCameraPreset(e.target.value as CameraPreset)}
+            title="Camera View Angle"
+          >
+            <option value="isometric">Perspective</option>
+            <option value="front">Front View</option>
+            <option value="top">Top View</option>
+            <option value="side">Side View</option>
+            <option value="filter-closeup">Filter Closeup</option>
+          </select>
+        </div>
+
+        {/* View Overlays (Grid & Measurements) */}
+        <div className="button-group">
+          <button
+            id="btn-toggle-grid"
+            className={`segmented-btn ${viewportSettings.showGrid ? 'active' : ''}`}
+            onClick={toggleGrid}
+            title={viewportSettings.showGrid ? 'Hide Coordinate Grid' : 'Show Coordinate Grid'}
+          >
+            <Grid3X3 size={14} />
+          </button>
+          <button
+            id="btn-toggle-measurements"
+            className={`segmented-btn ${viewportSettings.showMeasurements ? 'active' : ''}`}
+            onClick={toggleMeasurements}
+            title={viewportSettings.showMeasurements ? 'Hide Dimension Labels' : 'Show Dimension Labels'}
+          >
+            <Ruler size={14} />
+          </button>
+        </div>
+
+        {/* Lighting Mode Quick Selector */}
+        <div className="button-group">
+          <button
+            id="btn-light-daylight"
+            className={`segmented-btn ${viewportSettings.lightingPreset === 'daylight' ? 'active' : ''}`}
+            onClick={() => setLightingPreset('daylight')}
+            title="Daylight Spectrum"
+          >
+            <Sun size={13} />
+          </button>
+          <button
+            id="btn-light-actinic"
+            className={`segmented-btn ${viewportSettings.lightingPreset === 'actinic' ? 'active' : ''}`}
+            onClick={() => setLightingPreset('actinic')}
+            title="Actinic Marine Blue"
+          >
+            <Eye size={13} />
+          </button>
+          <button
+            id="btn-light-night"
+            className={`segmented-btn ${viewportSettings.lightingPreset === 'night' ? 'active' : ''}`}
+            onClick={() => setLightingPreset('night')}
+            title="Night Moon Mode"
+          >
+            <Moon size={13} />
+          </button>
+        </div>
+
+        <div className="toolbar-separator" />
+
+        {/* Fullscreen & Right Sidebar Toggle */}
+        <button
+          id="btn-fullscreen-toggle"
+          className="toolbar-btn icon-only"
+          onClick={toggleFullScreen}
+          title="Toggle Fullscreen"
+          aria-label="Toggle Fullscreen"
+        >
+          <Maximize2 size={15} />
+        </button>
+
+        <button
+          id="btn-toggle-right-sidebar"
+          className="toolbar-btn icon-only"
+          onClick={toggleRightSidebar}
+          title={layoutSettings.rightSidebarOpen ? 'Hide Inspector (Ctrl+])' : 'Show Inspector'}
+          aria-label="Toggle Right Sidebar"
+        >
+          {layoutSettings.rightSidebarOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+        </button>
+      </div>
+    </header>
+  );
+};

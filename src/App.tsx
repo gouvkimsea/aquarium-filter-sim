@@ -1,71 +1,65 @@
-import { useState, Suspense, useCallback } from 'react';
+import { Suspense, useCallback, useState } from 'react';
+import { EditorProvider } from './context/EditorContext';
+import { TopToolbar } from './components/toolbar/TopToolbar';
+import { LeftSidebar } from './components/sidebar/LeftSidebar';
+import { RightSidebar } from './components/sidebar/RightSidebar';
+import { CADStatusBar } from './components/statusbar/CADStatusBar';
 import { AquariumViewport } from './components/canvas/AquariumViewport';
-import { Header } from './components/layout/Header';
-import { ControlPanel } from './components/layout/ControlPanel';
-import { StatusBar } from './components/layout/StatusBar';
 import { WebGLErrorBoundary } from './components/common/WebGLErrorBoundary';
 import { LoadingScreen } from './components/common/LoadingScreen';
 import { useWebGLSupport } from './hooks/useWebGLSupport';
-import type { SceneSettings } from './types/scene';
 import './App.css';
 
-export function App() {
+function MainEditorShell() {
   const diagnostic = useWebGLSupport();
   const [contextLost, setContextLost] = useState(false);
-
-  const [settings, setSettings] = useState<SceneSettings>({
-    wireframe: false,
-    lightingPreset: 'daylight',
-    showHelpers: false,
-    waterOpacity: 0.35,
-    cameraPreset: 'default',
-  });
-
-  const handleResetCamera = useCallback(() => {
-    setSettings((prev) => ({ ...prev, cameraPreset: 'default' }));
-  }, []);
 
   const handleContextLost = useCallback(() => {
     setContextLost(true);
   }, []);
 
   return (
-    <div id="aquarium-app-root" className="app-container">
-      {/* Top Application Header */}
-      <Header />
+    <div id="aquarium-editor-root" className="cad-app-container">
+      {/* 1. Compact Top CAD Toolbar */}
+      <TopToolbar />
 
-      {/* Main 3D Viewport Shell with WebGL Capability Check & Error Handling */}
-      <main id="main-viewport-shell" className="viewport-shell">
-        <WebGLErrorBoundary
-          fallbackMessage={
-            !diagnostic.isSupported
-              ? diagnostic.errorMessage
-              : contextLost
-                ? 'WebGL Context was lost. Your GPU or browser may have reset graphics memory.'
-                : undefined
-          }
-        >
-          <Suspense fallback={<LoadingScreen />}>
-            <AquariumViewport
-              settings={settings}
-              onContextLost={handleContextLost}
-            />
-          </Suspense>
-        </WebGLErrorBoundary>
+      {/* 2. Main 3D Editor Workspace (Left Sidebar | Central Viewport | Right Sidebar) */}
+      <div id="cad-editor-workspace" className="cad-workspace">
+        {/* Left Sidebar: Component Library & Scene Hierarchy */}
+        <LeftSidebar />
 
-        {/* Floating Glassmorphic Viewport Controls */}
-        <ControlPanel
-          settings={settings}
-          onUpdateSettings={setSettings}
-        />
-      </main>
+        {/* Central 3D Viewport */}
+        <main id="cad-main-viewport" className="cad-viewport-center">
+          <WebGLErrorBoundary
+            fallbackMessage={
+              !diagnostic.isSupported
+                ? diagnostic.errorMessage
+                : contextLost
+                  ? 'WebGL Context was lost. Graphics device reset.'
+                  : undefined
+            }
+          >
+            <Suspense fallback={<LoadingScreen message="Initializing CAD Viewport..." />}>
+              <AquariumViewport onContextLost={handleContextLost} />
+            </Suspense>
+          </WebGLErrorBoundary>
+        </main>
 
-      {/* Bottom Status & Diagnostics Bar */}
-      <StatusBar
-        diagnostic={diagnostic}
-        onResetView={handleResetCamera}
-      />
+        {/* Right Sidebar: Selected Object Properties Inspector */}
+        <RightSidebar />
+      </div>
+
+      {/* 3. Small Status Bar */}
+      <CADStatusBar />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <EditorProvider>
+      <MainEditorShell />
+    </EditorProvider>
   );
 }
 
