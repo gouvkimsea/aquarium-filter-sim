@@ -519,111 +519,29 @@ export const INITIAL_SCENE_OBJECTS: EditorObject[] = [
     },
   },
 
-  // 4. Transparent Filter Container - Bottom Plate
+  // 4. Custom Filter Container Basin
   {
-    id: 'obj-filter-bottom-plate',
-    name: 'Filter Container Bottom Plate',
+    id: 'obj-filter-container',
+    name: 'Multi-Chamber Filter Basin',
     category: 'filter',
+    componentType: 'filter-container',
     visible: true,
-    position: { x: 2.2, y: 0.62, z: -1.75 },
-    dimensions: { x: 2.0, y: 0.05, z: 1.0 },
+    position: { x: 2.2, y: 1.4, z: -1.75 },
+    dimensions: { x: 2.0, y: 1.5, z: 1.0 },
     material: {
-      color: '#475569',
-      opacity: 0.85,
-      roughness: 0.2,
-      metalness: 0.3,
+      color: '#38bdf8',
+      opacity: 0.35,
+      roughness: 0.08,
+      metalness: 0.15,
       wireframe: false,
       transparent: true,
     },
     parameters: {
-      thicknessMm: 6,
-      materialType: 'High-Density Cast Acrylic',
-    },
-  },
-
-  // 5. Transparent Filter Container - Front Wall
-  {
-    id: 'obj-filter-wall-front',
-    name: 'Filter Front Transparent Wall',
-    category: 'filter',
-    visible: true,
-    position: { x: 2.2, y: 1.4, z: -1.26 },
-    dimensions: { x: 2.0, y: 1.5, z: 0.04 },
-    material: {
-      color: '#a0e9fd',
-      opacity: 0.25,
-      roughness: 0.05,
-      metalness: 0.1,
-      wireframe: false,
-      transparent: true,
-    },
-    parameters: {
-      opticalClarity: '99.2% UV-Stabilized Glass/Acrylic',
-      thicknessMm: 4,
-    },
-  },
-
-  // 6. Transparent Filter Container - Rear Wall
-  {
-    id: 'obj-filter-wall-back',
-    name: 'Filter Rear Wall Panel',
-    category: 'filter',
-    visible: true,
-    position: { x: 2.2, y: 1.4, z: -2.24 },
-    dimensions: { x: 2.0, y: 1.5, z: 0.04 },
-    material: {
-      color: '#1e293b',
-      opacity: 0.75,
-      roughness: 0.25,
-      metalness: 0.3,
-      wireframe: false,
-      transparent: true,
-    },
-    parameters: {
-      mountBracketType: 'Hang-On Rim Clamp',
-      thicknessMm: 5,
-    },
-  },
-
-  // 7. Transparent Filter Container - Left Wall
-  {
-    id: 'obj-filter-wall-left',
-    name: 'Filter Left Transparent Wall',
-    category: 'filter',
-    visible: true,
-    position: { x: 1.22, y: 1.4, z: -1.75 },
-    dimensions: { x: 0.04, y: 1.5, z: 0.96 },
-    material: {
-      color: '#a0e9fd',
-      opacity: 0.25,
-      roughness: 0.05,
-      metalness: 0.1,
-      wireframe: false,
-      transparent: true,
-    },
-    parameters: {
-      thicknessMm: 4,
-    },
-  },
-
-  // 8. Transparent Filter Container - Right Wall
-  {
-    id: 'obj-filter-wall-right',
-    name: 'Filter Right Transparent Wall',
-    category: 'filter',
-    visible: true,
-    position: { x: 3.18, y: 1.4, z: -1.75 },
-    dimensions: { x: 0.04, y: 1.5, z: 0.96 },
-    material: {
-      color: '#a0e9fd',
-      opacity: 0.25,
-      roughness: 0.05,
-      metalness: 0.1,
-      wireframe: false,
-      transparent: true,
-    },
-    parameters: {
-      thicknessMm: 4,
+      capacityLiters: 3.3,
+      chambers: 3,
+      wallThicknessMm: 4,
+      materialType: 'UV-Stabilized Cast Acrylic',
+      opticalClarity: '99.2%',
     },
   },
 

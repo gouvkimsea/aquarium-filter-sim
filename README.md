@@ -35,6 +35,25 @@ Whether you are an aquarist designing the optimal canister filtration flow, a st
 
 ---
 
+- **Custom Filter Geometry & Chamber Editing**:
+  - **Precision Millimeter/Centimeter Sizing**: Configure filter container width, height, and depth directly in millimeters, centimeters, or inches with real-time conversion and strict boundary validation.
+  - **Dynamic Geometry Recalculation**: Bottom base plate, front wall, rear wall, side walls, top rim flanges, and corner silicone seals automatically re-dimension without corrupting or deleting internal media.
+  - **Multi-Mode Container Inspection**:
+    - *Transparent*: Crystal-clear cast acrylic basin with high transmission and subtle refraction.
+    - *Opaque*: Solid industrial slate polymer engineering enclosure with crisp chamfers.
+    - *Cutaway*: Technical CAD section view with lowered front sill and illuminated cross-section cut edge for visual inspection of media beds and flow channels.
+  - **Real-Time Chamber Analysis & Usable Volume**:
+    - Automatic calculation of usable working fluid volume (accounting for 85% fill level and wall thickness) in Liters and Gallons.
+    - Step-by-step chamber breakdown displaying individual width, volume, internal boundary coordinates, and functional filtration stage classification (Mechanical, Biological Matrix, Chemical Media, Return Pump).
+  - **Dynamic Internal Dividers (Baffles)**:
+    - Smart "+ Add Internal Divider" action that automatically locates and splits the widest chamber.
+    - Horizontal position slider (X-axis) clamped within internal container clearances.
+    - Configurable bottom underflow slot gap (5mm – 60mm) and top weir overflow notches.
+    - Non-destructive proportional scaling: resizing the container proportionally shifts existing baffles and preserves media instances.
+  - **3D Viewport Measurements & Chamber Overlays**:
+    - 3D Dimension tags (Width, Height, Depth) anchored to container edges.
+    - Chamber stage pills floating above each compartment with individual volume readouts.
+    - Cycle metric (mm), metric (cm), and imperial (in) directly from the status bar.
 - **Reusable Aquarium Filter Component Library**: 12+ recognizable 3D models with native geometries, authentic materials, and technical specs:
   1. **Filter Container**: Open-top transparent acrylic basin with bottom plate, side walls, and rim flanges.
   2. **Internal Divider**: Vertical baffle plate with bottom underflow clearance and top weir overflow notches.

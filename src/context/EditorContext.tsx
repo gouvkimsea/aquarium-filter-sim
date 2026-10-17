@@ -16,8 +16,14 @@ import type {
   TransformMode,
   SnapSettings,
   Vector3D,
+  MetricUnit,
+  ContainerViewMode,
 } from '../types/editor';
 import { INITIAL_SCENE_OBJECTS } from '../data/componentLibrary';
+import {
+  resizeContainerAndDividers,
+  getNewDividerPosition,
+} from '../utils/filterGeometry';
 
 interface EditorContextType {
   // Scene Objects & Selection
@@ -53,6 +59,12 @@ interface EditorContextType {
   setSimulationSpeed: (speed: number) => void;
   resetSimulation: () => void;
 
+  // Custom Filter Geometry & Chamber Editing
+  resizeFilterContainer: (containerId: string, newDimensions: Vector3D) => void;
+  addDividerToContainer: (containerId: string) => void;
+  setMetricUnit: (unit: MetricUnit) => void;
+  setContainerViewMode: (mode: ContainerViewMode) => void;
+
   // Viewport Settings
   viewportSettings: ViewportSettings;
   updateViewportSettings: (
@@ -75,7 +87,7 @@ const MAX_HISTORY = 30;
 
 export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [objects, setObjects] = useState<EditorObject[]>(INITIAL_SCENE_OBJECTS);
-  const [selectedId, setSelectedId] = useState<string | null>('obj-filter-wall-front');
+  const [selectedId, setSelectedId] = useState<string | null>('obj-filter-container');
 
   // Transform Mode ('translate' | 'rotate' | 'scale')
   const [transformMode, setTransformMode] = useState<TransformMode>('translate');
@@ -111,6 +123,8 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     showMeasurements: true,
     showHelpers: false,
     unitSystem: 'imperial',
+    metricUnit: 'mm',
+    containerViewMode: 'transparent',
   });
 
   // Layout & UI State
@@ -436,14 +450,105 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showMeasurements: true,
       showHelpers: false,
       unitSystem: 'imperial',
+      metricUnit: 'mm',
+      containerViewMode: 'transparent',
     });
   }, []);
 
   const resetScene = useCallback(() => {
     pushHistory(objects);
     setObjects(INITIAL_SCENE_OBJECTS);
-    setSelectedId('obj-filter-wall-front');
+    setSelectedId('obj-filter-container');
   }, [objects, pushHistory]);
+
+  // Metric unit and Container view mode handlers
+  const setMetricUnit = useCallback((unit: MetricUnit) => {
+    setViewportSettings((prev) => ({ ...prev, metricUnit: unit }));
+  }, []);
+
+  const setContainerViewMode = useCallback((mode: ContainerViewMode) => {
+    setViewportSettings((prev) => ({ ...prev, containerViewMode: mode }));
+  }, []);
+
+  // Custom filter geometry resize
+  const resizeFilterContainer = useCallback(
+    (containerId: string, newDimensions: Vector3D) => {
+      const container = objects.find((o) => o.id === containerId);
+      if (!container) return;
+
+      pushHistory(objects);
+
+      const result = resizeContainerAndDividers(container, objects, newDimensions);
+
+      // Update simulation flow & turnover based on new capacity
+      const newCapacity = result.updatedContainer.parameters.capacityLiters as number;
+      if (typeof newCapacity === 'number' && newCapacity > 0) {
+        setSimulation((prev) => {
+          const flow = Math.round(newCapacity * 65);
+          return {
+            ...prev,
+            totalFlowGPH: flow,
+            calculatedTurnover: parseFloat((flow / 70).toFixed(1)),
+          };
+        });
+      }
+
+      setObjects((prev) => {
+        return prev.map((obj) => {
+          if (obj.id === containerId) return result.updatedContainer;
+          const updatedDiv = result.updatedDividers.find((d) => d.id === obj.id);
+          if (updatedDiv) return updatedDiv;
+          if (result.updatedInteriorVolume && obj.id === result.updatedInteriorVolume.id) {
+            return result.updatedInteriorVolume;
+          }
+          return obj;
+        });
+      });
+    },
+    [objects, pushHistory]
+  );
+
+  // Add a divider inside the container's widest chamber
+  const addDividerToContainer = useCallback(
+    (containerId: string) => {
+      const container = objects.find((o) => o.id === containerId);
+      if (!container) return;
+
+      pushHistory(objects);
+
+      const placement = getNewDividerPosition(container, objects);
+      const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const dividerId = `obj-filter-divider-${uniqueSuffix}`;
+
+      const newDivider: EditorObject = {
+        id: dividerId,
+        name: `Chamber Baffle (${objects.filter((o) => o.componentType === 'internal-divider' || o.id.includes('divider') || o.id.includes('baffle')).length + 1})`,
+        category: 'filter',
+        componentType: 'internal-divider',
+        visible: true,
+        locked: false,
+        position: placement.position,
+        rotation: { x: 0, y: 0, z: 0 },
+        dimensions: placement.dimensions,
+        material: {
+          color: '#38bdf8',
+          opacity: 0.5,
+          roughness: 0.15,
+          metalness: 0.1,
+          wireframe: false,
+          transparent: true,
+        },
+        parameters: {
+          flowPath: 'Dual Under/Overflow Baffle',
+          underflowGapMm: 15,
+        },
+      };
+
+      setObjects((prev) => [...prev, newDivider]);
+      setSelectedId(dividerId);
+    },
+    [objects, pushHistory]
+  );
 
   const exportProjectJSON = useCallback(() => {
     const data = {
@@ -561,6 +666,10 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         stepSimulation,
         setSimulationSpeed,
         resetSimulation,
+        resizeFilterContainer,
+        addDividerToContainer,
+        setMetricUnit,
+        setContainerViewMode,
         viewportSettings,
         updateViewportSettings,
         layoutSettings,

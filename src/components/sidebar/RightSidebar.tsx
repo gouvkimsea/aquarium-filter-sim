@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Sliders,
   Move,
@@ -15,8 +15,22 @@ import {
   Unlock,
   X,
   RotateCcw,
+  Box,
+  Plus,
+  AlertTriangle,
+  Scissors,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
+import {
+  toDisplayUnits,
+  fromDisplayUnits,
+  calculateChambers,
+  formatVolume,
+  validateContainerDimensions,
+  CONTAINER_LIMITS,
+} from '../../utils/filterGeometry';
 
 export const RightSidebar: React.FC = () => {
   const {
@@ -27,17 +41,57 @@ export const RightSidebar: React.FC = () => {
     deleteObject,
     duplicateObject,
     deselectObject,
+    selectObject,
     transformMode,
     setTransformMode,
     snapSettings,
     toggleSnap,
     layoutSettings,
     simulation,
+    objects,
+    resizeFilterContainer,
+    addDividerToContainer,
+    setMetricUnit,
+    setContainerViewMode,
+    viewportSettings,
   } = useEditor();
 
   if (!layoutSettings.rightSidebarOpen) {
     return null;
   }
+
+  // Check component roles
+  const isContainer =
+    selectedObject?.componentType === 'filter-container' ||
+    selectedObject?.id === 'obj-filter-container';
+
+  const isDivider =
+    selectedObject?.componentType === 'internal-divider' ||
+    selectedObject?.id.includes('divider') ||
+    selectedObject?.id.includes('baffle');
+
+  // Find parent container if divider is selected
+  const parentContainer = useMemo(() => {
+    return objects.find(
+      (o) => o.componentType === 'filter-container' || o.id === 'obj-filter-container'
+    );
+  }, [objects]);
+
+  const activeContainer = isContainer ? selectedObject : parentContainer;
+
+  // Real-time chamber calculation
+  const chambersConfig = useMemo(() => {
+    if (!activeContainer) return null;
+    return calculateChambers(activeContainer, objects);
+  }, [activeContainer, objects]);
+
+  // Dimension validation
+  const containerValidation = useMemo(() => {
+    if (!isContainer || !selectedObject) {
+      return { valid: true, clamped: { x: 0, y: 0, z: 0 } };
+    }
+    return validateContainerDimensions(selectedObject.dimensions);
+  }, [isContainer, selectedObject]);
 
   // Predefined color swatches for quick CAD aesthetic styling
   const COLOR_SWATCHES = [
@@ -344,68 +398,206 @@ export const RightSidebar: React.FC = () => {
               </div>
 
               {/* Dimensions (Length, Width, Height) */}
-              <div className="coord-group">
-                <span className="coord-group-title">Dimensions (L × W × H)</span>
-                <div className="coordinate-grid">
-                  <div className="coord-field">
-                    <label>L (Size)</label>
-                    <input
-                      id="input-dim-x"
-                      type="number"
-                      step={snapSettings.enabled ? snapSettings.scaleSnap : 0.05}
-                      min="0.05"
-                      value={selectedObject.dimensions.x}
-                      onChange={(e) =>
-                        updateObject(selectedObject.id, {
-                          dimensions: {
-                            ...selectedObject.dimensions,
-                            x: Math.max(0.05, parseFloat(e.target.value) || 0.05),
-                          },
-                        })
-                      }
-                      className="coord-input"
-                    />
+              {isContainer ? (
+                <div className="coord-group container-geometry-group">
+                  <div className="container-dim-header">
+                    <span className="coord-group-title">Container Geometry</span>
+                    {viewportSettings.unitSystem === 'metric' && (
+                      <div className="unit-pill-selector">
+                        <button
+                          id="btn-unit-mm"
+                          className={`unit-pill ${viewportSettings.metricUnit === 'mm' ? 'active' : ''}`}
+                          onClick={() => setMetricUnit('mm')}
+                        >
+                          mm
+                        </button>
+                        <button
+                          id="btn-unit-cm"
+                          className={`unit-pill ${viewportSettings.metricUnit === 'cm' ? 'active' : ''}`}
+                          onClick={() => setMetricUnit('cm')}
+                        >
+                          cm
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="coord-field">
-                    <label>W (Width)</label>
-                    <input
-                      id="input-dim-z"
-                      type="number"
-                      step={snapSettings.enabled ? snapSettings.scaleSnap : 0.05}
-                      min="0.05"
-                      value={selectedObject.dimensions.z}
-                      onChange={(e) =>
-                        updateObject(selectedObject.id, {
-                          dimensions: {
+
+                  <div className="coordinate-grid">
+                    <div className="coord-field">
+                      <label>Width ({viewportSettings.unitSystem === 'imperial' ? 'in' : viewportSettings.metricUnit})</label>
+                      <input
+                        id="input-container-width"
+                        type="number"
+                        step={viewportSettings.metricUnit === 'mm' ? 10 : 1}
+                        value={
+                          toDisplayUnits(
+                            selectedObject.dimensions.x,
+                            viewportSettings.unitSystem,
+                            viewportSettings.metricUnit
+                          ).value
+                        }
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          const meter = fromDisplayUnits(
+                            val,
+                            viewportSettings.unitSystem,
+                            viewportSettings.metricUnit
+                          );
+                          resizeFilterContainer(selectedObject.id, {
                             ...selectedObject.dimensions,
-                            z: Math.max(0.05, parseFloat(e.target.value) || 0.05),
-                          },
-                        })
-                      }
-                      className="coord-input"
-                    />
+                            x: meter,
+                          });
+                        }}
+                        className={`coord-input ${!containerValidation.valid && selectedObject.dimensions.x < CONTAINER_LIMITS.minWidth ? 'input-error' : ''}`}
+                      />
+                    </div>
+                    <div className="coord-field">
+                      <label>Height ({viewportSettings.unitSystem === 'imperial' ? 'in' : viewportSettings.metricUnit})</label>
+                      <input
+                        id="input-container-height"
+                        type="number"
+                        step={viewportSettings.metricUnit === 'mm' ? 10 : 1}
+                        value={
+                          toDisplayUnits(
+                            selectedObject.dimensions.y,
+                            viewportSettings.unitSystem,
+                            viewportSettings.metricUnit
+                          ).value
+                        }
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          const meter = fromDisplayUnits(
+                            val,
+                            viewportSettings.unitSystem,
+                            viewportSettings.metricUnit
+                          );
+                          resizeFilterContainer(selectedObject.id, {
+                            ...selectedObject.dimensions,
+                            y: meter,
+                          });
+                        }}
+                        className={`coord-input ${!containerValidation.valid && selectedObject.dimensions.y < CONTAINER_LIMITS.minHeight ? 'input-error' : ''}`}
+                      />
+                    </div>
+                    <div className="coord-field">
+                      <label>Depth ({viewportSettings.unitSystem === 'imperial' ? 'in' : viewportSettings.metricUnit})</label>
+                      <input
+                        id="input-container-depth"
+                        type="number"
+                        step={viewportSettings.metricUnit === 'mm' ? 10 : 1}
+                        value={
+                          toDisplayUnits(
+                            selectedObject.dimensions.z,
+                            viewportSettings.unitSystem,
+                            viewportSettings.metricUnit
+                          ).value
+                        }
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          const meter = fromDisplayUnits(
+                            val,
+                            viewportSettings.unitSystem,
+                            viewportSettings.metricUnit
+                          );
+                          resizeFilterContainer(selectedObject.id, {
+                            ...selectedObject.dimensions,
+                            z: meter,
+                          });
+                        }}
+                        className={`coord-input ${!containerValidation.valid && selectedObject.dimensions.z < CONTAINER_LIMITS.minDepth ? 'input-error' : ''}`}
+                      />
+                    </div>
                   </div>
-                  <div className="coord-field">
-                    <label>H (Depth)</label>
-                    <input
-                      id="input-dim-y"
-                      type="number"
-                      step={snapSettings.enabled ? snapSettings.scaleSnap : 0.05}
-                      min="0.05"
-                      value={selectedObject.dimensions.y}
-                      onChange={(e) =>
-                        updateObject(selectedObject.id, {
-                          dimensions: {
-                            ...selectedObject.dimensions,
-                            y: Math.max(0.05, parseFloat(e.target.value) || 0.05),
-                          },
-                        })
-                      }
-                      className="coord-input"
-                    />
+
+                  {/* Validation Feedback Banner */}
+                  {!containerValidation.valid ? (
+                    <div className="dimension-validation-banner error">
+                      <AlertTriangle size={13} className="text-amber-400" />
+                      <div className="val-text">
+                        <span>{containerValidation.error}</span>
+                        <button
+                          className="clamp-btn"
+                          onClick={() =>
+                            resizeFilterContainer(selectedObject.id, containerValidation.clamped)
+                          }
+                        >
+                          Auto-Clamp Bounds
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="dimension-validation-banner valid">
+                      <Sparkles size={11} className="text-emerald-400" />
+                      <span>
+                        Valid Basin Envelope: {toDisplayUnits(CONTAINER_LIMITS.minWidth, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted} – {toDisplayUnits(CONTAINER_LIMITS.maxWidth, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="coord-group">
+                  <span className="coord-group-title">Dimensions (L × W × H)</span>
+                  <div className="coordinate-grid">
+                    <div className="coord-field">
+                      <label>L (Size)</label>
+                      <input
+                        id="input-dim-x"
+                        type="number"
+                        step={snapSettings.enabled ? snapSettings.scaleSnap : 0.05}
+                        min="0.05"
+                        value={selectedObject.dimensions.x}
+                        onChange={(e) =>
+                          updateObject(selectedObject.id, {
+                            dimensions: {
+                              ...selectedObject.dimensions,
+                              x: Math.max(0.05, parseFloat(e.target.value) || 0.05),
+                            },
+                          })
+                        }
+                        className="coord-input"
+                      />
+                    </div>
+                    <div className="coord-field">
+                      <label>W (Width)</label>
+                      <input
+                        id="input-dim-z"
+                        type="number"
+                        step={snapSettings.enabled ? snapSettings.scaleSnap : 0.05}
+                        min="0.05"
+                        value={selectedObject.dimensions.z}
+                        onChange={(e) =>
+                          updateObject(selectedObject.id, {
+                            dimensions: {
+                              ...selectedObject.dimensions,
+                              z: Math.max(0.05, parseFloat(e.target.value) || 0.05),
+                            },
+                          })
+                        }
+                        className="coord-input"
+                      />
+                    </div>
+                    <div className="coord-field">
+                      <label>H (Depth)</label>
+                      <input
+                        id="input-dim-y"
+                        type="number"
+                        step={snapSettings.enabled ? snapSettings.scaleSnap : 0.05}
+                        min="0.05"
+                        value={selectedObject.dimensions.y}
+                        onChange={(e) =>
+                          updateObject(selectedObject.id, {
+                            dimensions: {
+                              ...selectedObject.dimensions,
+                              y: Math.max(0.05, parseFloat(e.target.value) || 0.05),
+                            },
+                          })
+                        }
+                        className="coord-input"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* 4. Material & Visual Properties */}
@@ -513,49 +705,236 @@ export const RightSidebar: React.FC = () => {
               {/* If FILTER selected */}
               {selectedObject.category === 'filter' && (
                 <div className="params-stack">
-                  <div className="field-slider-group">
-                    <div className="slider-header">
-                      <label>Pump Flow Rate</label>
-                      <span className="text-cyan-400 font-mono">
-                        {(selectedObject.parameters.flowRateGPH as number) || 150} GPH
-                      </span>
-                    </div>
-                    <input
-                      id="slider-filter-flow"
-                      type="range"
-                      min="30"
-                      max="600"
-                      step="10"
-                      value={(selectedObject.parameters.flowRateGPH as number) || 150}
-                      onChange={(e) =>
-                        updateObject(selectedObject.id, {
-                          parameters: {
-                            ...selectedObject.parameters,
-                            flowRateGPH: parseInt(e.target.value, 10),
-                          },
-                        })
-                      }
-                      className="cad-range-slider"
-                    />
-                  </div>
+                  {/* CASE 1: Filter Container Basin */}
+                  {isContainer ? (
+                    <div className="filter-basin-editor-stack">
+                      {/* Viewing Mode Selector (Transparent, Opaque, Cutaway) */}
+                      <div className="param-subgroup">
+                        <label className="subgroup-title">Basin Viewing Mode</label>
+                        <div className="view-mode-selector-row">
+                          <button
+                            id="btn-view-mode-transparent"
+                            className={`mode-btn ${viewportSettings.containerViewMode === 'transparent' ? 'active' : ''}`}
+                            onClick={() => setContainerViewMode('transparent')}
+                            title="Clear Acrylic Basin Walls"
+                          >
+                            <Eye size={13} />
+                            <span>Transparent</span>
+                          </button>
+                          <button
+                            id="btn-view-mode-opaque"
+                            className={`mode-btn ${viewportSettings.containerViewMode === 'opaque' ? 'active' : ''}`}
+                            onClick={() => setContainerViewMode('opaque')}
+                            title="Solid Technical Engineering Polymer"
+                          >
+                            <Box size={13} />
+                            <span>Opaque</span>
+                          </button>
+                          <button
+                            id="btn-view-mode-cutaway"
+                            className={`mode-btn ${viewportSettings.containerViewMode === 'cutaway' ? 'active' : ''}`}
+                            onClick={() => setContainerViewMode('cutaway')}
+                            title="Cutaway Cross-Section Inspection"
+                          >
+                            <Scissors size={13} />
+                            <span>Cutaway</span>
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="field-toggle-row">
-                    <label>Impeller Motor State</label>
-                    <button
-                      id="btn-toggle-filter-motor"
-                      className={`cad-switch-btn ${selectedObject.parameters.motorStatus !== false ? 'on' : 'off'}`}
-                      onClick={() =>
-                        updateObject(selectedObject.id, {
-                          parameters: {
-                            ...selectedObject.parameters,
-                            motorStatus: selectedObject.parameters.motorStatus === false,
-                          },
-                        })
-                      }
-                    >
-                      {selectedObject.parameters.motorStatus !== false ? 'ACTIVE' : 'OFF'}
-                    </button>
-                  </div>
+                      {/* Chambers & Usable Volume Breakdown */}
+                      <div className="param-subgroup">
+                        <div className="chambers-header-row">
+                          <div className="chambers-label">
+                            <Layers size={13} />
+                            <span>Chambers & Usable Volume</span>
+                          </div>
+                          <button
+                            id="btn-add-chamber-divider"
+                            className="add-divider-action-btn"
+                            onClick={() => addDividerToContainer(selectedObject.id)}
+                            title="Split widest chamber with a new acrylic divider baffle"
+                          >
+                            <Plus size={12} />
+                            <span>Add Divider</span>
+                          </button>
+                        </div>
+
+                        {chambersConfig && (
+                          <>
+                            <div className="chambers-summary-bar">
+                              <div className="summary-item">
+                                <span className="label">Total Usable Fluid:</span>
+                                <strong className="val text-cyan-400">
+                                  {formatVolume(chambersConfig.totalInternalVolumeLiters, viewportSettings.unitSystem)}
+                                </strong>
+                              </div>
+                              <div className="summary-item">
+                                <span className="label">Chambers:</span>
+                                <strong className="val">
+                                  {chambersConfig.chambers.length} Stages
+                                </strong>
+                              </div>
+                            </div>
+
+                            <div className="chambers-list">
+                              {chambersConfig.chambers.map((ch) => (
+                                <div key={ch.index} className="chamber-card">
+                                  <div className="chamber-card-top">
+                                    <span className="chamber-card-name">
+                                      Chamber {ch.index}
+                                    </span>
+                                    <span className={`stage-tag stage-${ch.assignedStage || 'mechanical'}`}>
+                                      {ch.assignedStage?.toUpperCase() || 'STAGE'}
+                                    </span>
+                                  </div>
+                                  <div className="chamber-card-metrics">
+                                    <div className="metric">
+                                      <span className="metric-label">Usable Vol</span>
+                                      <span className="metric-value text-cyan-300">
+                                        {formatVolume(ch.volumeLiters, viewportSettings.unitSystem)}
+                                      </span>
+                                    </div>
+                                    <div className="metric">
+                                      <span className="metric-label">Chamber Width</span>
+                                      <span className="metric-value">
+                                        {toDisplayUnits(ch.width, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted}
+                                      </span>
+                                    </div>
+                                    <div className="metric">
+                                      <span className="metric-label">X-Bounds</span>
+                                      <span className="metric-value font-mono">
+                                        {ch.startX.toFixed(2)}m → {ch.endX.toFixed(2)}m
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ) : isDivider ? (
+                    /* CASE 2: Internal Divider (Baffle) Controls */
+                    <div className="divider-editor-stack">
+                      <div className="divider-card-header">
+                        <span className="divider-badge">Internal Chamber Baffle</span>
+                        {parentContainer && (
+                          <button
+                            id="btn-select-parent-container"
+                            className="link-btn"
+                            onClick={() => selectObject(parentContainer.id)}
+                            title="Select Parent Filter Basin"
+                          >
+                            Filter Basin <ArrowRight size={11} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Horizontal X-Position Slider clamped inside container */}
+                      {parentContainer && (
+                        <div className="field-slider-group">
+                          <div className="slider-header">
+                            <label>Divider Position (X-Axis)</label>
+                            <span className="font-mono text-cyan-400">
+                              {toDisplayUnits(selectedObject.position.x, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted}
+                            </span>
+                          </div>
+                          <input
+                            id="slider-divider-x-position"
+                            type="range"
+                            min={(parentContainer.position.x - parentContainer.dimensions.x / 2 + 0.08).toFixed(3)}
+                            max={(parentContainer.position.x + parentContainer.dimensions.x / 2 - 0.08).toFixed(3)}
+                            step="0.01"
+                            value={selectedObject.position.x}
+                            onChange={(e) => {
+                              const newX = parseFloat(e.target.value);
+                              updateObject(selectedObject.id, {
+                                position: { ...selectedObject.position, x: newX },
+                              });
+                            }}
+                            className="cad-range-slider"
+                          />
+                        </div>
+                      )}
+
+                      {/* Underflow Gap Slider */}
+                      <div className="field-slider-group">
+                        <div className="slider-header">
+                          <label>Underflow Slot Clearance</label>
+                          <span className="font-mono text-emerald-400">
+                            {(selectedObject.parameters.underflowGapMm as number) || 15} mm
+                          </span>
+                        </div>
+                        <input
+                          id="slider-divider-underflow"
+                          type="range"
+                          min="5"
+                          max="60"
+                          step="5"
+                          value={(selectedObject.parameters.underflowGapMm as number) || 15}
+                          onChange={(e) => {
+                            const gap = parseInt(e.target.value, 10);
+                            updateObject(selectedObject.id, {
+                              parameters: {
+                                ...selectedObject.parameters,
+                                underflowGapMm: gap,
+                              },
+                            });
+                          }}
+                          className="cad-range-slider"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    /* CASE 3: Standard Filter Pump */
+                    <>
+                      <div className="field-slider-group">
+                        <div className="slider-header">
+                          <label>Pump Flow Rate</label>
+                          <span className="text-cyan-400 font-mono">
+                            {(selectedObject.parameters.flowRateGPH as number) || 150} GPH
+                          </span>
+                        </div>
+                        <input
+                          id="slider-filter-flow"
+                          type="range"
+                          min="30"
+                          max="600"
+                          step="10"
+                          value={(selectedObject.parameters.flowRateGPH as number) || 150}
+                          onChange={(e) =>
+                            updateObject(selectedObject.id, {
+                              parameters: {
+                                ...selectedObject.parameters,
+                                flowRateGPH: parseInt(e.target.value, 10),
+                              },
+                            })
+                          }
+                          className="cad-range-slider"
+                        />
+                      </div>
+
+                      <div className="field-toggle-row">
+                        <label>Impeller Motor State</label>
+                        <button
+                          id="btn-toggle-filter-motor"
+                          className={`cad-switch-btn ${selectedObject.parameters.motorStatus !== false ? 'on' : 'off'}`}
+                          onClick={() =>
+                            updateObject(selectedObject.id, {
+                              parameters: {
+                                ...selectedObject.parameters,
+                                motorStatus: selectedObject.parameters.motorStatus === false,
+                              },
+                            })
+                          }
+                        >
+                          {selectedObject.parameters.motorStatus !== false ? 'ACTIVE' : 'OFF'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

@@ -1,6 +1,14 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
+import { Html } from '@react-three/drei';
 import type { EditorObject } from '../../../types/editor';
+import { useEditor } from '../../../context/EditorContext';
+import {
+  toDisplayUnits,
+  calculateChambers,
+  formatVolume,
+  CONTAINER_LIMITS,
+} from '../../../utils/filterGeometry';
 
 interface ComponentMeshProps {
   object: EditorObject;
@@ -9,7 +17,7 @@ interface ComponentMeshProps {
 }
 
 // ----------------------------------------------------------------------
-// 1. Filter Container: Open-top transparent acrylic basin with rim lips
+// 1. Filter Container: Multi-Mode CAD Filter Basin (Transparent, Opaque, Cutaway)
 // ----------------------------------------------------------------------
 export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
   object,
@@ -17,42 +25,124 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
   interactiveProps,
 }) => {
   const { dimensions, material } = object;
-  const wallThick = 0.04;
-  const bottomThick = 0.05;
+  const { viewportSettings, objects, selectedId } = useEditor();
+
+  const isSelected = selectedId === object.id;
+  const viewMode = viewportSettings.containerViewMode || 'transparent';
+  const showMeasurements = viewportSettings.showMeasurements;
+  const unitSystem = viewportSettings.unitSystem;
+  const metricUnit = viewportSettings.metricUnit;
+
+  const wallThick = CONTAINER_LIMITS.wallThickness; // 0.04m
+  const bottomThick = CONTAINER_LIMITS.bottomThickness; // 0.05m
+  const isCutaway = viewMode === 'cutaway';
+  const isOpaque = viewMode === 'opaque';
+
+  // Calculate live chambers and usable volumes
+  const chambersConfig = useMemo(
+    () => calculateChambers(object, objects),
+    [object, objects]
+  );
+
+  // Material properties configured per view mode
+  const wallMaterialProps = useMemo(() => {
+    if (isOpaque) {
+      return {
+        color: '#1e293b',
+        roughness: 0.35,
+        metalness: 0.3,
+        transparent: false,
+        opacity: 1.0,
+      };
+    }
+    if (isCutaway) {
+      return {
+        color: '#1e293b',
+        roughness: 0.2,
+        metalness: 0.25,
+        transparent: true,
+        opacity: 0.55,
+      };
+    }
+    // Transparent mode (Crystal clear acrylic)
+    return {
+      color: material.color || '#38bdf8',
+      roughness: 0.08,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.32,
+    };
+  }, [isOpaque, isCutaway, material.color]);
+
+  // Corner coordinates for 4 silicone corner sealing pillars
+  const cornerOffsets = useMemo(() => {
+    const halfX = dimensions.x / 2 - wallThick / 2;
+    const halfZ = dimensions.z / 2 - wallThick / 2;
+    return [
+      [-halfX, -halfZ],
+      [halfX, -halfZ],
+      [-halfX, halfZ],
+      [halfX, halfZ],
+    ];
+  }, [dimensions.x, dimensions.z, wallThick]);
+
+  const cornerPillarHeight = dimensions.y - bottomThick;
 
   return (
     <group {...interactiveProps}>
-      {/* Bottom Plate */}
-      <mesh position={[0, -dimensions.y / 2 + bottomThick / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[dimensions.x, bottomThick, dimensions.z]} />
-        <meshStandardMaterial
-          color={material.color}
-          roughness={material.roughness}
-          metalness={material.metalness}
-          transparent={material.transparent}
-          opacity={Math.min(1.0, material.opacity + 0.3)}
-          wireframe={isWireframeAll || material.wireframe}
-        />
-      </mesh>
-
-      {/* Front Wall */}
+      {/* A. Bottom Base Plate */}
       <mesh
-        position={[0, bottomThick / 2, dimensions.z / 2 - wallThick / 2]}
+        position={[0, -dimensions.y / 2 + bottomThick / 2, 0]}
         castShadow
         receiveShadow
       >
-        <boxGeometry args={[dimensions.x, dimensions.y - bottomThick, wallThick]} />
+        <boxGeometry args={[dimensions.x, bottomThick, dimensions.z]} />
         <meshStandardMaterial
-          color={material.color}
-          roughness={material.roughness}
-          metalness={material.metalness}
-          transparent={material.transparent}
-          opacity={material.opacity}
+          color={isOpaque ? '#0f172a' : '#1e293b'}
+          roughness={0.4}
+          metalness={0.2}
+          transparent={!isOpaque}
+          opacity={isOpaque ? 1.0 : 0.75}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
 
-      {/* Back Wall */}
+      {/* B. Front Wall:
+          - If Cutaway: lowered to a cross-section threshold sill (with neon cut line)
+          - If Opaque / Transparent: full height */}
+      {isCutaway ? (
+        <group position={[0, -dimensions.y / 2 + bottomThick * 1.5, dimensions.z / 2 - wallThick / 2]}>
+          {/* Low front cross-section sill */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[dimensions.x, bottomThick * 2, wallThick]} />
+            <meshStandardMaterial
+              color="#0f172a"
+              roughness={0.3}
+              metalness={0.2}
+              wireframe={isWireframeAll || material.wireframe}
+            />
+          </mesh>
+          {/* Bright Section Cut Edge Highlight Line */}
+          <mesh position={[0, bottomThick, 0]}>
+            <boxGeometry args={[dimensions.x, 0.02, wallThick * 1.05]} />
+            <meshBasicMaterial color="#00f5d4" />
+          </mesh>
+        </group>
+      ) : (
+        <mesh
+          position={[0, bottomThick / 2, dimensions.z / 2 - wallThick / 2]}
+          castShadow
+          receiveShadow
+        >
+          <boxGeometry args={[dimensions.x, dimensions.y - bottomThick, wallThick]} />
+          <meshStandardMaterial
+            {...wallMaterialProps}
+            wireframe={isWireframeAll || material.wireframe}
+          />
+        </mesh>
+      )}
+
+      {/* C. Back Wall Panel */}
       <mesh
         position={[0, bottomThick / 2, -dimensions.z / 2 + wallThick / 2]}
         castShadow
@@ -60,61 +150,195 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
       >
         <boxGeometry args={[dimensions.x, dimensions.y - bottomThick, wallThick]} />
         <meshStandardMaterial
-          color={material.color}
-          roughness={material.roughness}
-          metalness={material.metalness}
-          transparent={material.transparent}
-          opacity={material.opacity}
+          {...wallMaterialProps}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
 
-      {/* Left Wall */}
+      {/* D. Left Wall Panel */}
       <mesh
         position={[-dimensions.x / 2 + wallThick / 2, bottomThick / 2, 0]}
         castShadow
         receiveShadow
       >
-        <boxGeometry args={[wallThick, dimensions.y - bottomThick, dimensions.z - wallThick * 2]} />
+        <boxGeometry
+          args={[wallThick, dimensions.y - bottomThick, dimensions.z - wallThick * 2]}
+        />
         <meshStandardMaterial
-          color={material.color}
-          roughness={material.roughness}
-          metalness={material.metalness}
-          transparent={material.transparent}
-          opacity={material.opacity}
+          {...wallMaterialProps}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
 
-      {/* Right Wall */}
+      {/* E. Right Wall Panel */}
       <mesh
         position={[dimensions.x / 2 - wallThick / 2, bottomThick / 2, 0]}
         castShadow
         receiveShadow
       >
-        <boxGeometry args={[wallThick, dimensions.y - bottomThick, dimensions.z - wallThick * 2]} />
+        <boxGeometry
+          args={[wallThick, dimensions.y - bottomThick, dimensions.z - wallThick * 2]}
+        />
         <meshStandardMaterial
-          color={material.color}
-          roughness={material.roughness}
-          metalness={material.metalness}
-          transparent={material.transparent}
-          opacity={material.opacity}
+          {...wallMaterialProps}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
 
-      {/* Top Rim Trim Flange */}
-      <mesh position={[0, dimensions.y / 2, 0]}>
-        <boxGeometry args={[dimensions.x + 0.05, 0.03, dimensions.z + 0.05]} />
-        <meshStandardMaterial
-          color="#334155"
-          roughness={0.25}
-          metalness={0.4}
-          transparent={material.transparent}
-          opacity={0.8}
-          wireframe={isWireframeAll || material.wireframe}
-        />
-      </mesh>
+      {/* F. Corner Marine Silicone Sealing Pillars (Gives crisp structural CAD bounds) */}
+      {cornerOffsets.map(([cx, cz], idx) => (
+        <mesh
+          key={idx}
+          position={[cx, bottomThick / 2, cz]}
+          castShadow
+        >
+          <boxGeometry args={[wallThick * 1.02, cornerPillarHeight, wallThick * 1.02]} />
+          <meshStandardMaterial
+            color={isOpaque ? '#090d16' : '#0f172a'}
+            roughness={0.25}
+            metalness={0.2}
+            wireframe={isWireframeAll}
+          />
+        </mesh>
+      ))}
+
+      {/* G. Top Perimeter Rim Flange */}
+      <group position={[0, dimensions.y / 2, 0]}>
+        {/* In cutaway mode, only back and side rims are shown */}
+        {isCutaway ? (
+          <>
+            {/* Back rim */}
+            <mesh position={[0, 0, -dimensions.z / 2]}>
+              <boxGeometry args={[dimensions.x + 0.04, 0.03, wallThick * 1.4]} />
+              <meshStandardMaterial color="#0284c7" roughness={0.3} metalness={0.4} />
+            </mesh>
+            {/* Left rim */}
+            <mesh position={[-dimensions.x / 2, 0, 0]}>
+              <boxGeometry args={[wallThick * 1.4, 0.03, dimensions.z]} />
+              <meshStandardMaterial color="#0284c7" roughness={0.3} metalness={0.4} />
+            </mesh>
+            {/* Right rim */}
+            <mesh position={[dimensions.x / 2, 0, 0]}>
+              <boxGeometry args={[wallThick * 1.4, 0.03, dimensions.z]} />
+              <meshStandardMaterial color="#0284c7" roughness={0.3} metalness={0.4} />
+            </mesh>
+          </>
+        ) : (
+          <mesh>
+            <boxGeometry args={[dimensions.x + 0.04, 0.03, dimensions.z + 0.04]} />
+            <meshStandardMaterial
+              color={isOpaque ? '#0284c7' : '#334155'}
+              roughness={0.25}
+              metalness={0.4}
+              transparent={!isOpaque}
+              opacity={0.85}
+              wireframe={isWireframeAll}
+            />
+          </mesh>
+        )}
+      </group>
+
+      {/* ================================================================ */}
+      {/* H. 3D MEASUREMENT LABELS (W × H × D)                             */}
+      {/* ================================================================ */}
+      {(showMeasurements || isSelected) && (
+        <group>
+          {/* Width Dimension along front bottom edge */}
+          <Html
+            position={[0, -dimensions.y / 2 - 0.16, dimensions.z / 2 + 0.12]}
+            center
+          >
+            <div className="cad-dim-badge width-dim">
+              <span className="dim-axis">W</span>
+              <span className="dim-val">
+                {toDisplayUnits(dimensions.x, unitSystem, metricUnit).formatted}
+              </span>
+            </div>
+          </Html>
+
+          {/* Height Dimension along front left corner */}
+          <Html
+            position={[-dimensions.x / 2 - 0.22, 0, dimensions.z / 2 + 0.12]}
+            center
+          >
+            <div className="cad-dim-badge height-dim">
+              <span className="dim-axis">H</span>
+              <span className="dim-val">
+                {toDisplayUnits(dimensions.y, unitSystem, metricUnit).formatted}
+              </span>
+            </div>
+          </Html>
+
+          {/* Depth Dimension along left side lower edge */}
+          <Html
+            position={[-dimensions.x / 2 - 0.22, -dimensions.y / 2 - 0.16, 0]}
+            center
+          >
+            <div className="cad-dim-badge depth-dim">
+              <span className="dim-axis">D</span>
+              <span className="dim-val">
+                {toDisplayUnits(dimensions.z, unitSystem, metricUnit).formatted}
+              </span>
+            </div>
+          </Html>
+        </group>
+      )}
+
+      {/* ================================================================ */}
+      {/* I. CHAMBER BOUNDARIES & APPROXIMATE USABLE INTERNAL VOLUME       */}
+      {/* ================================================================ */}
+      {(isSelected || showMeasurements) && (
+        <group>
+          {/* Master Container Header Tag */}
+          <Html position={[0, dimensions.y / 2 + 0.65, 0]} center>
+            <div className="cad-container-header-pill">
+              <span className="pill-title">Filter Basin</span>
+              <span className="pill-volume">
+                Usable: {formatVolume(chambersConfig.totalInternalVolumeLiters, unitSystem)}
+              </span>
+              <span className="pill-stages">
+                ({chambersConfig.chambers.length} Stages)
+              </span>
+            </div>
+          </Html>
+
+          {/* Chamber-specific Boundary Indicators & Usable Volume Pills */}
+          {chambersConfig.chambers.map((chamber) => {
+            const relMidX = (chamber.startX + chamber.endX) / 2 - object.position.x;
+            const relStartX = chamber.startX - object.position.x;
+            const relEndX = chamber.endX - object.position.x;
+
+            return (
+              <group key={chamber.index}>
+                {/* 3D Chamber Volume Badge floating above chamber */}
+                <Html position={[relMidX, dimensions.y / 2 + 0.28, 0]} center>
+                  <div className="cad-chamber-stage-pill">
+                    <div className="chamber-num-badge">CH {chamber.index}</div>
+                    <div className="chamber-details">
+                      <span className="chamber-vol">
+                        {formatVolume(chamber.volumeLiters, unitSystem)}
+                      </span>
+                      <span className="chamber-width">
+                        {toDisplayUnits(chamber.width, unitSystem, metricUnit).formatted}
+                      </span>
+                    </div>
+                  </div>
+                </Html>
+
+                {/* Subtle Chamber Boundary Guideline on rim */}
+                <mesh position={[relStartX, dimensions.y / 2 + 0.02, 0]}>
+                  <boxGeometry args={[0.015, 0.02, dimensions.z * 0.9]} />
+                  <meshBasicMaterial color="#38bdf8" transparent opacity={0.6} />
+                </mesh>
+                <mesh position={[relEndX, dimensions.y / 2 + 0.02, 0]}>
+                  <boxGeometry args={[0.015, 0.02, dimensions.z * 0.9]} />
+                  <meshBasicMaterial color="#38bdf8" transparent opacity={0.6} />
+                </mesh>
+              </group>
+            );
+          })}
+        </group>
+      )}
     </group>
   );
 };
@@ -128,21 +352,25 @@ export const InternalDividerMesh: React.FC<ComponentMeshProps> = ({
   interactiveProps,
 }) => {
   const { dimensions, material } = object;
+  const { selectedId } = useEditor();
+  const isSelected = selectedId === object.id;
+
   const plateThick = Math.max(0.02, dimensions.x);
-  const underflowSlotH = dimensions.y * 0.14;
-  const mainPlateH = dimensions.y - underflowSlotH;
+  const underflowGapMm = (object.parameters.underflowGapMm as number) || 15;
+  const underflowSlotH = Math.min(dimensions.y * 0.4, underflowGapMm / 1000);
+  const mainPlateH = Math.max(0.05, dimensions.y - underflowSlotH);
 
   return (
     <group {...interactiveProps}>
-      {/* Main Divider Plate (raised to leave bottom underflow pass) */}
+      {/* Main Divider Plate (raised above floor to provide underflow slot) */}
       <mesh position={[0, underflowSlotH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[plateThick, mainPlateH, dimensions.z]} />
         <meshStandardMaterial
-          color={material.color}
-          roughness={material.roughness}
-          metalness={material.metalness}
+          color={material.color || '#38bdf8'}
+          roughness={material.roughness || 0.15}
+          metalness={material.metalness || 0.1}
           transparent={material.transparent}
-          opacity={material.opacity}
+          opacity={material.opacity || 0.5}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
@@ -165,6 +393,16 @@ export const InternalDividerMesh: React.FC<ComponentMeshProps> = ({
           <meshBasicMaterial color="#38bdf8" />
         </mesh>
       ))}
+
+      {/* Selected Divider Information Pill */}
+      {isSelected && (
+        <Html position={[0, dimensions.y / 2 + 0.35, 0]} center>
+          <div className="cad-baffle-select-pill">
+            <span className="baffle-name">{object.name}</span>
+            <span className="baffle-gap">Underflow: {underflowGapMm}mm</span>
+          </div>
+        </Html>
+      )}
     </group>
   );
 };

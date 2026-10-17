@@ -26,6 +26,7 @@ import {
   Magnet,
   Copy,
   Trash2,
+  Scissors,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import type { ViewMode, CameraPreset, LightingPreset } from '../../types/editor';
@@ -42,6 +43,7 @@ export const TopToolbar: React.FC = () => {
     setSimulationSpeed,
     viewportSettings,
     updateViewportSettings,
+    setContainerViewMode,
     layoutSettings,
     toggleLeftSidebar,
     toggleRightSidebar,
@@ -301,6 +303,34 @@ export const TopToolbar: React.FC = () => {
 
       {/* 3. Right Section: View Modes, Camera Presets, Lighting, Right Sidebar Toggle */}
       <div className="toolbar-section toolbar-right">
+        {/* Container View Mode (Transparent / Opaque / Cutaway) */}
+        <div className="button-group" title="Filter Container View Mode (Transparent / Opaque / Cutaway)">
+          <button
+            id="tb-btn-container-transparent"
+            className={`segmented-btn ${viewportSettings.containerViewMode === 'transparent' ? 'active' : ''}`}
+            onClick={() => setContainerViewMode('transparent')}
+            title="Container: Clear Acrylic (Transparent)"
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            id="tb-btn-container-opaque"
+            className={`segmented-btn ${viewportSettings.containerViewMode === 'opaque' ? 'active' : ''}`}
+            onClick={() => setContainerViewMode('opaque')}
+            title="Container: Solid Technical Polymer (Opaque)"
+          >
+            <Box size={14} />
+          </button>
+          <button
+            id="tb-btn-container-cutaway"
+            className={`segmented-btn ${viewportSettings.containerViewMode === 'cutaway' ? 'active' : ''}`}
+            onClick={() => setContainerViewMode('cutaway')}
+            title="Container: Cross-Section Inspection (Cutaway)"
+          >
+            <Scissors size={14} />
+          </button>
+        </div>
+
         {/* View Mode (Solid / Wireframe / X-Ray) */}
         <div className="button-group" title="Viewport Shading Mode">
           <button

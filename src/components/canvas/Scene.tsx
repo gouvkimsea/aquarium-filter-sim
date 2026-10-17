@@ -161,14 +161,7 @@ export const Scene: React.FC = () => {
   const waterObj = getObj('obj-water-body');
   const substrateObj = getObj('obj-substrate-bed');
 
-  // Filter Container Components
-  const filterBottomObj = getObj('obj-filter-bottom-plate');
-  const filterWallFront = getObj('obj-filter-wall-front');
-  const filterWallBack = getObj('obj-filter-wall-back');
-  const filterWallLeft = getObj('obj-filter-wall-left');
-  const filterWallRight = getObj('obj-filter-wall-right');
-  const filterBaffle1 = getObj('obj-filter-baffle-1');
-  const filterBaffle2 = getObj('obj-filter-baffle-2');
+  // Filter Fluid & Plumbing
   const filterWaterInterior = getObj('obj-filter-water-interior');
   const filterSpillway = getObj('obj-filter-spillway');
   const intakeObj = getObj('obj-intake-pipe');
@@ -183,7 +176,7 @@ export const Scene: React.FC = () => {
   const stoneA = getObj('obj-stone-a');
   const stoneB = getObj('obj-stone-b');
 
-  // Dynamic objects added from library
+  // Dynamic objects added from library or custom filter/dividers
   const customObjects = objects.filter(
     (o) =>
       o.visible &&
@@ -191,13 +184,6 @@ export const Scene: React.FC = () => {
         'obj-tank-enclosure',
         'obj-water-body',
         'obj-substrate-bed',
-        'obj-filter-bottom-plate',
-        'obj-filter-wall-front',
-        'obj-filter-wall-back',
-        'obj-filter-wall-left',
-        'obj-filter-wall-right',
-        'obj-filter-baffle-1',
-        'obj-filter-baffle-2',
         'obj-filter-water-interior',
         'obj-filter-spillway',
         'obj-intake-pipe',
@@ -393,255 +379,10 @@ export const Scene: React.FC = () => {
       )}
 
       {/* ============================================================== */}
-      {/* 4. REALISTIC TRANSPARENT RECTANGULAR FILTER CONTAINER          */}
-      {/*    Visible walls, base plate, internal baffles, and media      */}
+      {/* 4. FILTER CONTAINER & INTERNAL FLUID STREAM                    */}
       {/* ============================================================== */}
       <group position={[0, 0, 0]}>
-        {/* A. Container Bottom Plate */}
-        {filterBottomObj && (
-          <mesh
-            position={[
-              filterBottomObj.position.x,
-              filterBottomObj.position.y,
-              filterBottomObj.position.z,
-            ]}
-            castShadow
-            receiveShadow
-            renderOrder={3}
-            {...makeInteractive(filterBottomObj.id)}
-          >
-            <boxGeometry
-              args={[
-                filterBottomObj.dimensions.x,
-                filterBottomObj.dimensions.y,
-                filterBottomObj.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterBottomObj.material.color}
-              transparent
-              opacity={filterBottomObj.material.opacity}
-              roughness={filterBottomObj.material.roughness}
-              metalness={filterBottomObj.material.metalness}
-              wireframe={isWireframeAll || filterBottomObj.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* B. Front Transparent Wall (Crystal Clear Acrylic) */}
-        {filterWallFront && (
-          <mesh
-            position={[
-              filterWallFront.position.x,
-              filterWallFront.position.y,
-              filterWallFront.position.z,
-            ]}
-            castShadow
-            renderOrder={8}
-            {...makeInteractive(filterWallFront.id)}
-          >
-            <boxGeometry
-              args={[
-                filterWallFront.dimensions.x,
-                filterWallFront.dimensions.y,
-                filterWallFront.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterWallFront.material.color}
-              transparent
-              opacity={filterWallFront.material.opacity}
-              roughness={filterWallFront.material.roughness}
-              metalness={0.05}
-              transmission={0.92}
-              ior={1.49}
-              thickness={0.12}
-              side={THREE.DoubleSide}
-              wireframe={isWireframeAll || filterWallFront.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* C. Rear Wall Panel (Tinted Smoke Acrylic) */}
-        {filterWallBack && (
-          <mesh
-            position={[
-              filterWallBack.position.x,
-              filterWallBack.position.y,
-              filterWallBack.position.z,
-            ]}
-            castShadow
-            renderOrder={8}
-            {...makeInteractive(filterWallBack.id)}
-          >
-            <boxGeometry
-              args={[
-                filterWallBack.dimensions.x,
-                filterWallBack.dimensions.y,
-                filterWallBack.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterWallBack.material.color}
-              transparent
-              opacity={filterWallBack.material.opacity}
-              roughness={filterWallBack.material.roughness}
-              metalness={filterWallBack.material.metalness}
-              transmission={0.4}
-              side={THREE.DoubleSide}
-              wireframe={isWireframeAll || filterWallBack.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* D. Left Transparent Wall */}
-        {filterWallLeft && (
-          <mesh
-            position={[
-              filterWallLeft.position.x,
-              filterWallLeft.position.y,
-              filterWallLeft.position.z,
-            ]}
-            castShadow
-            renderOrder={8}
-            {...makeInteractive(filterWallLeft.id)}
-          >
-            <boxGeometry
-              args={[
-                filterWallLeft.dimensions.x,
-                filterWallLeft.dimensions.y,
-                filterWallLeft.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterWallLeft.material.color}
-              transparent
-              opacity={filterWallLeft.material.opacity}
-              roughness={filterWallLeft.material.roughness}
-              transmission={0.92}
-              ior={1.49}
-              thickness={0.12}
-              side={THREE.DoubleSide}
-              wireframe={isWireframeAll || filterWallLeft.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* E. Right Transparent Wall */}
-        {filterWallRight && (
-          <mesh
-            position={[
-              filterWallRight.position.x,
-              filterWallRight.position.y,
-              filterWallRight.position.z,
-            ]}
-            castShadow
-            renderOrder={8}
-            {...makeInteractive(filterWallRight.id)}
-          >
-            <boxGeometry
-              args={[
-                filterWallRight.dimensions.x,
-                filterWallRight.dimensions.y,
-                filterWallRight.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterWallRight.material.color}
-              transparent
-              opacity={filterWallRight.material.opacity}
-              roughness={filterWallRight.material.roughness}
-              transmission={0.92}
-              ior={1.49}
-              thickness={0.12}
-              side={THREE.DoubleSide}
-              wireframe={isWireframeAll || filterWallRight.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* F. Corner Silicone Edge Seams (Gives crisp physical boundaries to glass container) */}
-        <group position={[2.2, 1.4, -1.75]}>
-          {/* 4 Vertical corner pillars */}
-          {[
-            [-0.98, -0.47],
-            [0.98, -0.47],
-            [-0.98, 0.47],
-            [0.98, 0.47],
-          ].map(([cx, cz], idx) => (
-            <mesh key={idx} position={[cx, 0, cz]}>
-              <boxGeometry args={[0.04, 1.5, 0.04]} />
-              <meshStandardMaterial color="#0f172a" roughness={0.3} />
-            </mesh>
-          ))}
-          {/* Top perimeter rim accent */}
-          <mesh position={[0, 0.76, 0]}>
-            <boxGeometry args={[2.04, 0.04, 1.04]} />
-            <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.5} />
-          </mesh>
-        </group>
-
-        {/* G. Internal Chamber Baffle 1 (Underflow divider) */}
-        {filterBaffle1 && (
-          <mesh
-            position={[
-              filterBaffle1.position.x,
-              filterBaffle1.position.y,
-              filterBaffle1.position.z,
-            ]}
-            castShadow
-            renderOrder={4}
-            {...makeInteractive(filterBaffle1.id)}
-          >
-            <boxGeometry
-              args={[
-                filterBaffle1.dimensions.x,
-                filterBaffle1.dimensions.y,
-                filterBaffle1.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterBaffle1.material.color}
-              transparent
-              opacity={filterBaffle1.material.opacity}
-              roughness={filterBaffle1.material.roughness}
-              transmission={0.65}
-              wireframe={isWireframeAll || filterBaffle1.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* H. Internal Chamber Baffle 2 (Weir overflow divider) */}
-        {filterBaffle2 && (
-          <mesh
-            position={[
-              filterBaffle2.position.x,
-              filterBaffle2.position.y,
-              filterBaffle2.position.z,
-            ]}
-            castShadow
-            renderOrder={4}
-            {...makeInteractive(filterBaffle2.id)}
-          >
-            <boxGeometry
-              args={[
-                filterBaffle2.dimensions.x,
-                filterBaffle2.dimensions.y,
-                filterBaffle2.dimensions.z,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={filterBaffle2.material.color}
-              transparent
-              opacity={filterBaffle2.material.opacity}
-              roughness={filterBaffle2.material.roughness}
-              transmission={0.65}
-              wireframe={isWireframeAll || filterBaffle2.material.wireframe}
-            />
-          </mesh>
-        )}
-
-        {/* I. Internal Filter Water Fluid Volume */}
+        {/* Internal Filter Water Fluid Volume */}
         {filterWaterInterior && (
           <mesh
             ref={filterWaterRef}

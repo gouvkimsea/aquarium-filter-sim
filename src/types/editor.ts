@@ -95,6 +95,33 @@ export interface SimulationState {
   calculatedTurnover: number;
 }
 
+export type ContainerViewMode = 'transparent' | 'opaque' | 'cutaway';
+export type MetricUnit = 'mm' | 'cm';
+
+export interface FilterChamberInfo {
+  index: number;
+  name: string;
+  startX: number;
+  endX: number;
+  width: number; // in meters (internal)
+  height: number;
+  depth: number;
+  volumeLiters: number;
+  volumeGallons: number;
+  assignedStage?: 'mechanical' | 'biological' | 'chemical' | 'pump' | 'intake';
+}
+
+export interface ContainerGeometryConfig {
+  width: number; // in meters (internal)
+  height: number;
+  depth: number;
+  wallThickness: number;
+  bottomThickness: number;
+  chambers: FilterChamberInfo[];
+  totalInternalVolumeLiters: number;
+  totalInternalVolumeGallons: number;
+}
+
 export interface ViewportSettings {
   viewMode: ViewMode;
   cameraPreset: CameraPreset;
@@ -103,6 +130,8 @@ export interface ViewportSettings {
   showMeasurements: boolean;
   showHelpers: boolean;
   unitSystem: UnitSystem;
+  metricUnit: MetricUnit;
+  containerViewMode: ContainerViewMode;
 }
 
 export interface LayoutSettings {

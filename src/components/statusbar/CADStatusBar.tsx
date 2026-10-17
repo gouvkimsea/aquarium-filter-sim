@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   MousePointer,
   RotateCcw,
@@ -7,6 +7,11 @@ import {
   Globe,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
+import {
+  toDisplayUnits,
+  formatVolume,
+  calculateChambers,
+} from '../../utils/filterGeometry';
 
 export const CADStatusBar: React.FC = () => {
   const {
@@ -19,11 +24,16 @@ export const CADStatusBar: React.FC = () => {
     snapSettings,
   } = useEditor();
 
-  const toggleUnitSystem = () => {
-    updateViewportSettings((prev) => ({
-      ...prev,
-      unitSystem: prev.unitSystem === 'metric' ? 'imperial' : 'metric',
-    }));
+  const cycleUnitSystem = () => {
+    updateViewportSettings((prev) => {
+      if (prev.unitSystem === 'metric' && prev.metricUnit === 'mm') {
+        return { ...prev, metricUnit: 'cm' };
+      } else if (prev.unitSystem === 'metric' && prev.metricUnit === 'cm') {
+        return { ...prev, unitSystem: 'imperial' };
+      } else {
+        return { ...prev, unitSystem: 'metric', metricUnit: 'mm' };
+      }
+    });
   };
 
   const handleResetCamera = () => {
@@ -33,8 +43,34 @@ export const CADStatusBar: React.FC = () => {
   // Calculate Tank Dimensions based on selected unit system
   const isMetric = viewportSettings.unitSystem === 'metric';
   const tankDimensionsText = isMetric
-    ? 'DIM: 120 × 45 × 50 cm  •  VOL: 270 L  •  MASS: ~285 kg'
-    : 'DIM: 48 × 18 × 21 in  •  VOL: 71.3 Gal  •  MASS: ~628 lbs';
+    ? viewportSettings.metricUnit === 'mm'
+      ? 'TANK: 1200 × 450 × 500 mm • 270 L'
+      : 'TANK: 120 × 45 × 50 cm • 270 L'
+    : 'TANK: 48 × 18 × 21 in • 71.3 Gal';
+
+  // Filter Basin Telemetry
+  const filterContainer = useMemo(
+    () => objects.find((o) => o.componentType === 'filter-container' || o.id === 'obj-filter-container'),
+    [objects]
+  );
+
+  const filterChambers = useMemo(
+    () => (filterContainer ? calculateChambers(filterContainer, objects) : null),
+    [filterContainer, objects]
+  );
+
+  const filterBasinText = useMemo(() => {
+    if (!filterContainer || !filterChambers) return null;
+    const w = toDisplayUnits(filterContainer.dimensions.x, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted;
+    const h = toDisplayUnits(filterContainer.dimensions.y, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted;
+    const d = toDisplayUnits(filterContainer.dimensions.z, viewportSettings.unitSystem, viewportSettings.metricUnit).formatted;
+    const vol = formatVolume(filterChambers.totalInternalVolumeLiters, viewportSettings.unitSystem);
+    return `BASIN: ${w} × ${h} × ${d} • ${vol} (${filterChambers.chambers.length} Ch)`;
+  }, [filterContainer, filterChambers, viewportSettings.unitSystem, viewportSettings.metricUnit]);
+
+  const unitLabel = viewportSettings.unitSystem === 'imperial'
+    ? 'INCHES'
+    : `METRIC (${viewportSettings.metricUnit.toUpperCase()})`;
 
   return (
     <footer id="cad-status-bar" className="cad-status-bar">
@@ -77,6 +113,12 @@ export const CADStatusBar: React.FC = () => {
           <Ruler size={12} className="text-emerald-400" />
           <span>{tankDimensionsText}</span>
         </div>
+        {filterBasinText && (
+          <div className="measurements-pill filter-basin-pill" id="status-filter-basin">
+            <span className="basin-dot" />
+            <span>{filterBasinText}</span>
+          </div>
+        )}
       </div>
 
       {/* 3. Right: Simulation State, Unit Selector & Camera Reset */}
@@ -93,11 +135,11 @@ export const CADStatusBar: React.FC = () => {
         <button
           id="btn-toggle-unit-system"
           className="status-action-btn"
-          onClick={toggleUnitSystem}
-          title="Toggle Unit System (Metric / Imperial)"
+          onClick={cycleUnitSystem}
+          title="Toggle Unit System (mm / cm / in)"
         >
           <Globe size={12} />
-          <span>{viewportSettings.unitSystem.toUpperCase()}</span>
+          <span>{unitLabel}</span>
         </button>
 
         {/* Reset Camera Button */}
