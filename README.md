@@ -37,6 +37,12 @@ Whether you are an aquarist designing the optimal canister filtration flow, a st
 
 ## ✨ Key Features
 
+- **Interactive 3D CAD Viewport & Gizmos**: Full Three.js & React Three Fiber desktop-first CAD editor with orbit/pan/zoom, perspective/isometric/orthographic camera presets, and interactive 3D translation/rotation/scale gizmos (`TransformControls`).
+- **Object Selection & Outlining**: Direct viewport mesh raycasting with selection highlight boxes, floating identity badges, and synchronised tree hierarchy outliner.
+- **Bi-Directional Property Inspector**: Live synchronization between 3D viewport manipulations and the CAD properties panel (real-time position, Euler rotation in degrees, and millimeter/inch dimensions).
+- **Configurable Grid Snapping**: Built-in translation and rotation angle snapping (e.g., 0.1m, 15° steps) with quick keyboard toggles (`X`).
+- **Object Locking & Visibility**: Prevent accidental manipulation or raycast selection of locked or hidden scene objects (such as the container frame or delicate baffles).
+- **History & Object Lifecycle**: Full Undo/Redo stack (`Ctrl+Z`, `Ctrl+Y`) supporting object creation, duplication (`Ctrl+D`), transformations, and deletion.
 - **Real-Time Nitrogen Cycle Dynamics**: Precise modeling of organic waste decay into Total Ammonia Nitrogen ($NH_3/NH_4^+$), conversion to Nitrite ($NO_2^-$) by *Nitrosomonas*, and oxidation into Nitrate ($NO_3^-$) by *Nitrobacter* / *Nitrospira*.
 - **Multi-Stage Filter Media Stack**: Layer coarse, medium, and fine mechanical pads, ceramic bio-rings/matrix, and chemical adsorbents (activated carbon, resins, Purigen).
 - **Media Degradation & Flow Resistance**: Simulates debris clogging over time, causing decreased flow rate (GPH/LPH), bypass channeling, and head pressure changes.
@@ -136,31 +142,30 @@ aquarium-filter-sim/
 ├── LICENSE                             # MIT License
 ├── package.json                        # Dependencies & scripts (React, Three.js, R3F)
 ├── tsconfig.json                       # TypeScript project references
-├── tsconfig.app.json                   # Client-side TypeScript compiler config
 ├── vite.config.ts                      # Vite build & plugin configuration
 ├── index.html                          # HTML shell & font definitions
-├── public/                             # Static assets & favicons
 └── src/
     ├── main.tsx                        # Application entry point
-    ├── App.tsx                         # Core application shell & viewport wrapper
+    ├── App.tsx                         # Core application shell & CAD layout
     ├── index.css                       # Global design system tokens & base reset
-    ├── App.css                         # 3D viewport, glassmorphic HUD & overlay styling
+    ├── App.css                         # 3D viewport, glassmorphic HUD & inspector styling
     ├── components/
     │   ├── canvas/
-    │   │   ├── AquariumViewport.tsx    # R3F Canvas, OrbitControls & camera presets
-    │   │   ├── Scene.tsx               # 3D tank, water volume, filter geometry, particles
-    │   │   └── EnvironmentLighting.tsx # Curated lighting presets (daylight, actinic, night)
-    │   ├── common/
-    │   │   ├── WebGLErrorBoundary.tsx  # Error boundary & hardware acceleration fallbacks
-    │   │   └── LoadingScreen.tsx       # Animated aquatic loader
-    │   └── layout/
-    │       ├── Header.tsx              # Top bar, logo, telemetry pills, fullscreen toggle
-    │       ├── ControlPanel.tsx        # Floating glassmorphic HUD (camera, lighting, wireframe)
-    │       └── StatusBar.tsx           # WebGL diagnostics & navigation hints
-    ├── hooks/
-    │   └── useWebGLSupport.ts          # GPU vendor/renderer detection & WebGL capability check
+    │   │   ├── AquariumViewport.tsx    # R3F Canvas, OrbitControls & transform HUD
+    │   │   ├── Scene.tsx               # 3D scene meshes, container, water, and highlights
+    │   │   ├── TransformGizmo.tsx      # Interactive 3D translation/rotation/scale handles
+    │   │   └── EnvironmentLighting.tsx # Curated lighting presets
+    │   ├── sidebar/
+    │   │   ├── LeftSidebar.tsx         # Component library & scene outliner tree
+    │   │   └── RightSidebar.tsx        # Object inspector (Position, Rotation, Dimensions)
+    │   ├── toolbar/
+    │   │   └── TopToolbar.tsx          # CAD actions, undo/redo, transform modes, snapping
+    │   └── statusbar/
+    │       └── CADStatusBar.tsx        # Selection readout, tool badges, dimensions
+    ├── context/
+    │   └── EditorContext.tsx           # State management, history stack & shortcuts
     └── types/
-        └── scene.ts                    # TypeScript types for scene settings & diagnostics
+        └── editor.ts                   # Core data models for scene objects & editor state
 ```
 
 ---
@@ -168,7 +173,13 @@ aquarium-filter-sim/
 ## 🗺 Roadmap
 
 - [x] Initial project design & scientific architecture specification
+- [x] Desktop-first CAD interface layout (Toolbars, Sidebars, Viewport, Status Bar)
+- [x] Realistic 3D viewport with glass filter container & studio lighting
+- [x] Complete 3D object interaction system (Selection, Gizmos, Snapping, Undo/Redo)
 - [ ] Core numerical simulation engine (Ammonia $\to$ Nitrite $\to$ Nitrate)
+- [ ] Multi-stage filter media hydraulics & flow velocity simulation
+- [ ] Warning triggers (Ammonia spikes, oxygen depletion, filter overflows)
+- [ ] Exportable telemetry data (CSV / JSON log export)
 - [ ] Interactive UI with real-time parameter sliders (temp, bioload, filter flow)
 - [ ] Multiple filter configuration presets (HOB, Canister, Sponge, Sump)
 - [ ] Warning triggers (Ammonia spikes, oxygen depletion, filter overflows)

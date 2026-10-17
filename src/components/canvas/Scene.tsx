@@ -7,9 +7,16 @@ import type { EditorObject } from '../../types/editor';
 
 // Selection Highlight Bounding Box
 const SelectionHighlight: React.FC<{ object: EditorObject }> = ({ object }) => {
-  const { dimensions, position } = object;
+  const { dimensions, position, rotation } = object;
+  const rx = ((rotation?.x || 0) * Math.PI) / 180;
+  const ry = ((rotation?.y || 0) * Math.PI) / 180;
+  const rz = ((rotation?.z || 0) * Math.PI) / 180;
+
   return (
-    <group position={[position.x, position.y, position.z]}>
+    <group
+      position={[position.x, position.y, position.z]}
+      rotation={[rx, ry, rz]}
+    >
       <mesh>
         <boxGeometry
           args={[
@@ -204,20 +211,28 @@ export const Scene: React.FC = () => {
 
   const selectedObj = objects.find((o) => o.id === selectedId);
 
-  // Reusable interactive mesh props
-  const makeInteractive = (id: string) => ({
-    onClick: (e: { stopPropagation: () => void }) => {
-      e.stopPropagation();
-      selectObject(id);
-    },
-    onPointerOver: (e: { stopPropagation: () => void }) => {
-      e.stopPropagation();
-      document.body.style.cursor = 'pointer';
-    },
-    onPointerOut: () => {
-      document.body.style.cursor = 'auto';
-    },
-  });
+  // Reusable interactive mesh props - prevents accidental selection of hidden or locked objects
+  const makeInteractive = (id: string) => {
+    const target = objects.find((o) => o.id === id);
+    const isClickable = target && target.visible && !target.locked;
+
+    return {
+      onClick: (e: { stopPropagation: () => void }) => {
+        e.stopPropagation();
+        if (!isClickable) return;
+        selectObject(id);
+      },
+      onPointerOver: (e: { stopPropagation: () => void }) => {
+        e.stopPropagation();
+        if (isClickable) {
+          document.body.style.cursor = 'pointer';
+        }
+      },
+      onPointerOut: () => {
+        document.body.style.cursor = 'auto';
+      },
+    };
+  };
 
   return (
     <group
@@ -894,6 +909,11 @@ export const Scene: React.FC = () => {
       {stoneA && (
         <mesh
           position={[stoneA.position.x, stoneA.position.y, stoneA.position.z]}
+          rotation={[
+            ((stoneA.rotation?.x || 12) * Math.PI) / 180,
+            ((stoneA.rotation?.y || 23) * Math.PI) / 180,
+            ((stoneA.rotation?.z || 6) * Math.PI) / 180,
+          ]}
           castShadow
           receiveShadow
           {...makeInteractive(stoneA.id)}
@@ -911,6 +931,11 @@ export const Scene: React.FC = () => {
       {stoneB && (
         <mesh
           position={[stoneB.position.x, stoneB.position.y, stoneB.position.z]}
+          rotation={[
+            ((stoneB.rotation?.x || 23) * Math.PI) / 180,
+            ((stoneB.rotation?.y || -28) * Math.PI) / 180,
+            ((stoneB.rotation?.z || 17) * Math.PI) / 180,
+          ]}
           castShadow
           receiveShadow
           {...makeInteractive(stoneB.id)}
@@ -930,6 +955,11 @@ export const Scene: React.FC = () => {
         <mesh
           key={obj.id}
           position={[obj.position.x, obj.position.y, obj.position.z]}
+          rotation={[
+            ((obj.rotation?.x || 0) * Math.PI) / 180,
+            ((obj.rotation?.y || 0) * Math.PI) / 180,
+            ((obj.rotation?.z || 0) * Math.PI) / 180,
+          ]}
           castShadow
           receiveShadow
           {...makeInteractive(obj.id)}

@@ -21,6 +21,11 @@ import {
   Grid3X3,
   Ruler,
   Waves,
+  Move,
+  RotateCw,
+  Magnet,
+  Copy,
+  Trash2,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import type { ViewMode, CameraPreset, LightingPreset } from '../../types/editor';
@@ -42,6 +47,13 @@ export const TopToolbar: React.FC = () => {
     toggleRightSidebar,
     resetScene,
     exportProjectJSON,
+    transformMode,
+    setTransformMode,
+    snapSettings,
+    toggleSnap,
+    selectedObject,
+    duplicateObject,
+    deleteObject,
   } = useEditor();
 
   const [showFileMenu, setShowFileMenu] = useState(false);
@@ -169,6 +181,71 @@ export const TopToolbar: React.FC = () => {
         >
           <Redo2 size={15} />
         </button>
+
+        <div className="toolbar-separator" />
+
+        {/* Transform Mode Switchers */}
+        <div className="button-group" title="Transform Tool (W: Move, E: Rotate, R: Resize)">
+          <button
+            id="tb-btn-mode-translate"
+            className={`segmented-btn ${transformMode === 'translate' ? 'active' : ''}`}
+            onClick={() => setTransformMode('translate')}
+            title="Move / Translate Mode (W)"
+          >
+            <Move size={14} />
+          </button>
+          <button
+            id="tb-btn-mode-rotate"
+            className={`segmented-btn ${transformMode === 'rotate' ? 'active' : ''}`}
+            onClick={() => setTransformMode('rotate')}
+            title="Rotate Mode (E)"
+          >
+            <RotateCw size={14} />
+          </button>
+          <button
+            id="tb-btn-mode-scale"
+            className={`segmented-btn ${transformMode === 'scale' ? 'active' : ''}`}
+            onClick={() => setTransformMode('scale')}
+            title="Resize / Scale Mode (R)"
+          >
+            <Maximize2 size={14} />
+          </button>
+        </div>
+
+        {/* Grid Snapping Toggle */}
+        <button
+          id="tb-btn-toggle-snap"
+          className={`toolbar-btn snap-toggle-btn ${snapSettings.enabled ? 'active' : ''}`}
+          onClick={toggleSnap}
+          title={`Toggle Grid Snapping (X) - Currently ${snapSettings.enabled ? 'ON' : 'OFF'}`}
+        >
+          <Magnet size={13} />
+          <span>SNAP</span>
+        </button>
+
+        {/* Selected Object Quick Actions */}
+        {selectedObject && (
+          <>
+            <button
+              id="tb-btn-duplicate"
+              className="toolbar-btn icon-only"
+              onClick={() => duplicateObject(selectedObject.id)}
+              title="Duplicate Selected Object (Ctrl+D)"
+            >
+              <Copy size={14} />
+            </button>
+            {!selectedObject.locked && (
+              <button
+                id="tb-btn-delete"
+                className="toolbar-btn icon-only hover-danger"
+                onClick={() => deleteObject(selectedObject.id)}
+                title="Delete Selected Object (Del)"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* 2. Center Section: Simulation Transport Bar */}

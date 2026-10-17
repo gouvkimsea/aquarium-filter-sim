@@ -13,6 +13,8 @@ import type {
   SimulationState,
   ViewportSettings,
   LayoutSettings,
+  TransformMode,
+  SnapSettings,
 } from '../types/editor';
 import { INITIAL_SCENE_OBJECTS } from '../data/componentLibrary';
 
@@ -22,10 +24,20 @@ interface EditorContextType {
   selectedId: string | null;
   selectedObject: EditorObject | null;
   selectObject: (id: string | null) => void;
-  updateObject: (id: string, updates: Partial<EditorObject>) => void;
+  deselectObject: () => void;
+  updateObject: (id: string, updates: Partial<EditorObject>, skipHistory?: boolean) => void;
   toggleVisibility: (id: string) => void;
+  toggleLock: (id: string) => void;
   deleteObject: (id: string) => void;
+  duplicateObject: (id: string) => void;
   addComponentFromLibrary: (template: ComponentTemplate) => void;
+
+  // Transform Gizmo & Snapping
+  transformMode: TransformMode;
+  setTransformMode: (mode: TransformMode) => void;
+  snapSettings: SnapSettings;
+  setSnapSettings: (updater: (prev: SnapSettings) => SnapSettings) => void;
+  toggleSnap: () => void;
 
   // History / Undo / Redo
   undo: () => void;
@@ -64,6 +76,17 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [objects, setObjects] = useState<EditorObject[]>(INITIAL_SCENE_OBJECTS);
   const [selectedId, setSelectedId] = useState<string | null>('obj-filter-wall-front');
 
+  // Transform Mode ('translate' | 'rotate' | 'scale')
+  const [transformMode, setTransformMode] = useState<TransformMode>('translate');
+
+  // Grid Snapping
+  const [snapSettings, setSnapSettings] = useState<SnapSettings>({
+    enabled: true,
+    translationSnap: 0.1,
+    rotationSnapDeg: 15,
+    scaleSnap: 0.1,
+  });
+
   // Undo / Redo history
   const [history, setHistory] = useState<EditorObject[][]>([]);
   const [future, setFuture] = useState<EditorObject[][]>([]);
@@ -82,7 +105,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [viewportSettings, setViewportSettings] = useState<ViewportSettings>({
     viewMode: 'rendered',
     cameraPreset: 'isometric',
-    lightingPreset: 'daylight',
+    lightingPreset: 'studio',
     showGrid: true,
     showMeasurements: true,
     showHelpers: false,
@@ -136,19 +159,37 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => clearInterval(interval);
   }, [simulation.isRunning, simulation.speed, totalFlowGPH, calculatedTurnover]);
 
-  // Object Selection
-  const selectObject = useCallback((id: string | null) => {
-    setSelectedId(id);
+  // Object Selection (Prevents selecting hidden objects)
+  const selectObject = useCallback(
+    (id: string | null) => {
+      if (id === null) {
+        setSelectedId(null);
+        return;
+      }
+      const target = objects.find((o) => o.id === id);
+      if (!target || !target.visible) {
+        // Do not select hidden objects
+        return;
+      }
+      setSelectedId(id);
+    },
+    [objects]
+  );
+
+  const deselectObject = useCallback(() => {
+    setSelectedId(null);
   }, []);
 
   const selectedObject = useMemo(() => {
     return objects.find((obj) => obj.id === selectedId) || null;
   }, [objects, selectedId]);
 
-  // Object Property Updates
+  // Object Property Updates (support optional skipHistory for dragging, commit on finish)
   const updateObject = useCallback(
-    (id: string, updates: Partial<EditorObject>) => {
-      pushHistory(objects);
+    (id: string, updates: Partial<EditorObject>, skipHistory: boolean = false) => {
+      if (!skipHistory) {
+        pushHistory(objects);
+      }
       setObjects((prev) =>
         prev.map((obj) => {
           if (obj.id !== id) return obj;
@@ -161,6 +202,9 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             dimensions: updates.dimensions
               ? { ...obj.dimensions, ...updates.dimensions }
               : obj.dimensions,
+            rotation: updates.rotation
+              ? { ...obj.rotation, ...updates.rotation }
+              : obj.rotation,
             material: updates.material
               ? { ...obj.material, ...updates.material }
               : obj.material,
@@ -179,8 +223,29 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     (id: string) => {
       pushHistory(objects);
       setObjects((prev) =>
+        prev.map((obj) => {
+          if (obj.id === id) {
+            const nextVis = !obj.visible;
+            // If turning off visibility and it's selected, deselect
+            if (!nextVis && selectedId === id) {
+              setSelectedId(null);
+            }
+            return { ...obj, visible: nextVis };
+          }
+          return obj;
+        })
+      );
+    },
+    [objects, selectedId, pushHistory]
+  );
+
+  // Toggle Object Lock
+  const toggleLock = useCallback(
+    (id: string) => {
+      pushHistory(objects);
+      setObjects((prev) =>
         prev.map((obj) =>
-          obj.id === id ? { ...obj, visible: !obj.visible } : obj
+          obj.id === id ? { ...obj, locked: !obj.locked } : obj
         )
       );
     },
@@ -190,11 +255,44 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Delete Object
   const deleteObject = useCallback(
     (id: string) => {
+      const target = objects.find((o) => o.id === id);
+      if (target?.locked) return; // Prevent deleting locked objects
+
       pushHistory(objects);
       setObjects((prev) => prev.filter((obj) => obj.id !== id));
       if (selectedId === id) setSelectedId(null);
     },
     [objects, selectedId, pushHistory]
+  );
+
+  // Duplicate Object
+  const duplicateObject = useCallback(
+    (id: string) => {
+      const target = objects.find((o) => o.id === id);
+      if (!target) return;
+
+      pushHistory(objects);
+      const newId = `${target.id}-copy-${Date.now().toString(36)}`;
+      const duplicated: EditorObject = {
+        ...target,
+        id: newId,
+        name: `${target.name} (Copy)`,
+        locked: false, // Clones are unlocked by default
+        position: {
+          x: parseFloat((target.position.x + 0.35).toFixed(2)),
+          y: parseFloat((target.position.y).toFixed(2)),
+          z: parseFloat((target.position.z + 0.35).toFixed(2)),
+        },
+        rotation: target.rotation ? { ...target.rotation } : { x: 0, y: 0, z: 0 },
+        dimensions: { ...target.dimensions },
+        material: { ...target.material },
+        parameters: { ...target.parameters },
+      };
+
+      setObjects((prev) => [...prev, duplicated]);
+      setSelectedId(newId);
+    },
+    [objects, pushHistory]
   );
 
   // Add Component From Library
@@ -207,11 +305,13 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         name: template.name,
         category: template.category,
         visible: true,
+        locked: false,
         position: {
-          x: (Math.random() - 0.5) * 2.0,
+          x: parseFloat(((Math.random() - 0.5) * 2.0).toFixed(2)),
           y: template.category === 'filter' ? 1.4 : -1.2,
-          z: (Math.random() - 0.5) * 1.5,
+          z: parseFloat(((Math.random() - 0.5) * 1.5).toFixed(2)),
         },
+        rotation: { x: 0, y: 0, z: 0 },
         dimensions: { ...template.defaultDimensions },
         material: { ...template.defaultMaterial },
         parameters: { ...template.defaultParameters },
@@ -239,6 +339,11 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setHistory((prev) => [...prev, objects]);
     setObjects(next);
   }, [future, objects]);
+
+  // Snapping Toggle
+  const toggleSnap = useCallback(() => {
+    setSnapSettings((prev) => ({ ...prev, enabled: !prev.enabled }));
+  }, []);
 
   // Simulation controls
   const toggleSimulation = useCallback(() => {
@@ -300,7 +405,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setViewportSettings({
       viewMode: 'rendered',
       cameraPreset: 'isometric',
-      lightingPreset: 'daylight',
+      lightingPreset: 'studio',
       showGrid: true,
       showMeasurements: true,
       showHelpers: false,
@@ -346,6 +451,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return;
       }
 
+      // Undo / Redo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -353,21 +459,53 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
         redo();
-      } else if (e.key === ' ' || e.code === 'Space') {
+      }
+      // Duplicate Object
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (selectedId) duplicateObject(selectedId);
+      }
+      // Transform Mode hotkeys
+      else if (e.key.toLowerCase() === 'w') {
+        setTransformMode('translate');
+      } else if (e.key.toLowerCase() === 'e') {
+        setTransformMode('rotate');
+      } else if (e.key.toLowerCase() === 'r') {
+        setTransformMode('scale');
+      }
+      // Toggle Snapping
+      else if (e.key.toLowerCase() === 'x') {
+        toggleSnap();
+      }
+      // Simulation Run/Pause
+      else if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         toggleSimulation();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedId && selectedId !== 'obj-tank-enclosure') {
+      }
+      // Delete Object
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId) {
           deleteObject(selectedId);
         }
-      } else if (e.key === 'Escape') {
-        setSelectedId(null);
+      }
+      // Deselect
+      else if (e.key === 'Escape') {
+        deselectObject();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, toggleSimulation, deleteObject, selectedId]);
+  }, [
+    undo,
+    redo,
+    duplicateObject,
+    deleteObject,
+    deselectObject,
+    toggleSimulation,
+    toggleSnap,
+    selectedId,
+  ]);
 
   return (
     <EditorContext.Provider
@@ -376,10 +514,18 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         selectedId,
         selectedObject,
         selectObject,
+        deselectObject,
         updateObject,
         toggleVisibility,
+        toggleLock,
         deleteObject,
+        duplicateObject,
         addComponentFromLibrary,
+        transformMode,
+        setTransformMode,
+        snapSettings,
+        setSnapSettings,
+        toggleSnap,
         undo,
         redo,
         canUndo: history.length > 0,

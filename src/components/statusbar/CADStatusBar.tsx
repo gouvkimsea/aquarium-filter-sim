@@ -15,6 +15,8 @@ export const CADStatusBar: React.FC = () => {
     viewportSettings,
     updateViewportSettings,
     objects,
+    transformMode,
+    snapSettings,
   } = useEditor();
 
   const toggleUnitSystem = () => {
@@ -42,7 +44,11 @@ export const CADStatusBar: React.FC = () => {
           <MousePointer size={12} className="text-cyan-400" />
           {selectedObject ? (
             <span className="selection-readout">
-              SELECTED: <strong>{selectedObject.name}</strong> ({selectedObject.category})
+              SELECTED: <strong>{selectedObject.name}</strong>
+              {selectedObject.locked && <span className="status-locked-chip">[LOCKED]</span>}
+              <span className="coord-mini-hint">
+                ({selectedObject.position.x}, {selectedObject.position.y}, {selectedObject.position.z})
+              </span>
             </span>
           ) : (
             <span className="selection-readout text-dim">
@@ -54,6 +60,14 @@ export const CADStatusBar: React.FC = () => {
         <div className="status-badge">
           <Layers size={12} className="text-dim" />
           <span>OBJECTS: {objects.length}</span>
+        </div>
+
+        <div className="status-badge transform-tool-badge">
+          <span className="text-dim">TOOL:</span>
+          <strong className="text-sky-400">{transformMode.toUpperCase()}</strong>
+          <span className="status-snap-indicator">
+            [SNAP: {snapSettings.enabled ? `${snapSettings.translationSnap}m` : 'OFF'}]
+          </span>
         </div>
       </div>
 

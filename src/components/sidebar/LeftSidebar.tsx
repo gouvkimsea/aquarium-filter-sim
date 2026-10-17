@@ -13,6 +13,8 @@ import {
   Sliders,
   Filter as FilterIcon,
   Check,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { COMPONENT_TEMPLATES } from '../../data/componentLibrary';
@@ -24,6 +26,7 @@ export const LeftSidebar: React.FC = () => {
     selectedId,
     selectObject,
     toggleVisibility,
+    toggleLock,
     deleteObject,
     addComponentFromLibrary,
     layoutSettings,
@@ -214,6 +217,16 @@ export const LeftSidebar: React.FC = () => {
                   </span>
 
                   <div className="item-actions" onClick={(e) => e.stopPropagation()}>
+                    {/* Lock Toggle */}
+                    <button
+                      id={`btn-lock-${obj.id}`}
+                      className={`item-action-btn ${obj.locked ? 'text-amber-400' : ''}`}
+                      onClick={() => toggleLock(obj.id)}
+                      title={obj.locked ? 'Unlock Object (Allow selection & editing)' : 'Lock Object (Prevent selection & editing)'}
+                    >
+                      {obj.locked ? <Lock size={13} /> : <Unlock size={13} />}
+                    </button>
+
                     {/* Visibility Toggle */}
                     <button
                       id={`btn-vis-${obj.id}`}

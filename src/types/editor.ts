@@ -18,6 +18,14 @@ export type CameraPreset =
   | 'back'
   | 'filter-closeup';
 export type LightingPreset = 'daylight' | 'studio' | 'actinic' | 'night';
+export type TransformMode = 'translate' | 'rotate' | 'scale';
+
+export interface SnapSettings {
+  enabled: boolean;
+  translationSnap: number;
+  rotationSnapDeg: number;
+  scaleSnap: number;
+}
 
 export interface Vector3D {
   x: number;
