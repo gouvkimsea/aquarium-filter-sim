@@ -110,10 +110,20 @@ graph TD
    cd aquarium-filter-sim
    ```
 
-2. **Open the project**:
-   - For web builds, simply open `index.html` in your favorite web browser or serve it with a lightweight local server:
+2. **Install dependencies**:
    ```bash
-   npx serve .
+   npm install
+   ```
+
+3. **Start the local development server**:
+   ```bash
+   npm run dev
+   ```
+   Open your browser to [http://localhost:5173](http://localhost:5173).
+
+4. **Production Build**:
+   ```bash
+   npm run build
    ```
 
 ---
@@ -122,16 +132,35 @@ graph TD
 
 ```text
 aquarium-filter-sim/
-├── README.md               # Project documentation & scientific overview
-├── index.html              # Simulation interface & control dashboard (coming soon)
-├── css/                    # Modern styling & responsive design
-│   └── styles.css
-├── src/                    # Simulation logic & mathematical engine
-│   ├── engine.js           # Core physics and tick loop
-│   ├── nitrogen-cycle.js   # Biochemical equations & nitrification rates
-│   ├── filter.js           # Multi-stage media modeling & flow calculations
-│   └── water.js            # Water parameters (pH, temp, DO, KH, GH)
-└── assets/                 # Icons, media schematics, and sound effects
+├── README.md                           # Project documentation & scientific model
+├── LICENSE                             # MIT License
+├── package.json                        # Dependencies & scripts (React, Three.js, R3F)
+├── tsconfig.json                       # TypeScript project references
+├── tsconfig.app.json                   # Client-side TypeScript compiler config
+├── vite.config.ts                      # Vite build & plugin configuration
+├── index.html                          # HTML shell & font definitions
+├── public/                             # Static assets & favicons
+└── src/
+    ├── main.tsx                        # Application entry point
+    ├── App.tsx                         # Core application shell & viewport wrapper
+    ├── index.css                       # Global design system tokens & base reset
+    ├── App.css                         # 3D viewport, glassmorphic HUD & overlay styling
+    ├── components/
+    │   ├── canvas/
+    │   │   ├── AquariumViewport.tsx    # R3F Canvas, OrbitControls & camera presets
+    │   │   ├── Scene.tsx               # 3D tank, water volume, filter geometry, particles
+    │   │   └── EnvironmentLighting.tsx # Curated lighting presets (daylight, actinic, night)
+    │   ├── common/
+    │   │   ├── WebGLErrorBoundary.tsx  # Error boundary & hardware acceleration fallbacks
+    │   │   └── LoadingScreen.tsx       # Animated aquatic loader
+    │   └── layout/
+    │       ├── Header.tsx              # Top bar, logo, telemetry pills, fullscreen toggle
+    │       ├── ControlPanel.tsx        # Floating glassmorphic HUD (camera, lighting, wireframe)
+    │       └── StatusBar.tsx           # WebGL diagnostics & navigation hints
+    ├── hooks/
+    │   └── useWebGLSupport.ts          # GPU vendor/renderer detection & WebGL capability check
+    └── types/
+        └── scene.ts                    # TypeScript types for scene settings & diagnostics
 ```
 
 ---

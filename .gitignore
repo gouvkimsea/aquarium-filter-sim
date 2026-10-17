@@ -11,7 +11,9 @@ yarn-error.log*
 
 # Build output
 dist/
+dist-ssr/
 build/
+*.tsbuildinfo
 
 # Editor and OS files
 .DS_Store
@@ -20,3 +22,4 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+
