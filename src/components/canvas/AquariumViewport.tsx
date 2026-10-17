@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -10,12 +10,13 @@ import {
   Copy,
   Trash2,
   X,
+  Plus,
 } from 'lucide-react';
 import { Scene } from './Scene';
 import { EnvironmentLighting } from './EnvironmentLighting';
 import { TransformGizmo } from './TransformGizmo';
 import { useEditor } from '../../context/EditorContext';
-import type { CameraPreset } from '../../types/editor';
+import type { CameraPreset, ComponentTemplate } from '../../types/editor';
 
 interface ViewportProps {
   onContextLost?: () => void;
@@ -91,14 +92,65 @@ export const AquariumViewport: React.FC<ViewportProps> = ({ onContextLost }) => 
     duplicateObject,
     deleteObject,
     deselectObject,
+    addComponentFromLibrary,
   } = useEditor();
+
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const setCameraPreset = (preset: CameraPreset) => {
     updateViewportSettings((prev) => ({ ...prev, cameraPreset: preset }));
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!isDragOver) setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) return;
+      const tpl: ComponentTemplate = JSON.parse(data);
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const normY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+
+      const worldX = parseFloat((normX * 2.6).toFixed(2));
+      const worldY = parseFloat((normY * 1.4).toFixed(2));
+      const worldZ = 0.2;
+
+      addComponentFromLibrary(tpl, { x: worldX, y: worldY, z: worldZ });
+    } catch (err) {
+      console.warn('Failed to parse dropped template:', err);
+    }
+  };
+
   return (
-    <div id="aquarium-3d-viewport" className="viewport-container">
+    <div
+      id="aquarium-3d-viewport"
+      className={`viewport-container ${isDragOver ? 'drag-over-active' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag & Drop Visual Dropzone Overlay */}
+      {isDragOver && (
+        <div className="viewport-drop-overlay">
+          <div className="drop-target-badge">
+            <Plus size={22} className="text-cyan-400" />
+            <span>Drop to Place Component into 3D Tank</span>
+          </div>
+        </div>
+      )}
       {/* 1. Floating In-Viewport Quick Camera Navigation Bar */}
       <div id="viewport-camera-hud" className="viewport-hud-bar">
         <button

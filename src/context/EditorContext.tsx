@@ -15,6 +15,7 @@ import type {
   LayoutSettings,
   TransformMode,
   SnapSettings,
+  Vector3D,
 } from '../types/editor';
 import { INITIAL_SCENE_OBJECTS } from '../data/componentLibrary';
 
@@ -30,7 +31,7 @@ interface EditorContextType {
   toggleLock: (id: string) => void;
   deleteObject: (id: string) => void;
   duplicateObject: (id: string) => void;
-  addComponentFromLibrary: (template: ComponentTemplate) => void;
+  addComponentFromLibrary: (template: ComponentTemplate, dropPosition?: Vector3D) => void;
 
   // Transform Gizmo & Snapping
   transformMode: TransformMode;
@@ -297,20 +298,45 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Add Component From Library
   const addComponentFromLibrary = useCallback(
-    (template: ComponentTemplate) => {
+    (template: ComponentTemplate, dropPosition?: Vector3D) => {
       pushHistory(objects);
-      const newId = `obj-${template.category}-${Date.now().toString(36)}`;
+      const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const newId = `obj-${template.componentType || template.category}-${uniqueSuffix}`;
+
+      let spawnPos: Vector3D;
+      if (dropPosition) {
+        spawnPos = {
+          x: snapSettings.enabled
+            ? parseFloat((Math.round(dropPosition.x / snapSettings.translationSnap) * snapSettings.translationSnap).toFixed(2))
+            : parseFloat(dropPosition.x.toFixed(2)),
+          y: snapSettings.enabled
+            ? parseFloat((Math.round(dropPosition.y / snapSettings.translationSnap) * snapSettings.translationSnap).toFixed(2))
+            : parseFloat(dropPosition.y.toFixed(2)),
+          z: snapSettings.enabled
+            ? parseFloat((Math.round(dropPosition.z / snapSettings.translationSnap) * snapSettings.translationSnap).toFixed(2))
+            : parseFloat(dropPosition.z.toFixed(2)),
+        };
+      } else {
+        // Predictable staging position right above tank center, staggered neatly
+        const dynamicItems = objects.filter((o) => o.componentType);
+        const count = dynamicItems.length;
+        const col = count % 4;
+        const row = Math.floor(count / 4) % 3;
+        spawnPos = {
+          x: parseFloat((-0.9 + col * 0.6).toFixed(2)),
+          y: template.category === 'filter' ? 0.8 : parseFloat((-0.5 + row * 0.45).toFixed(2)),
+          z: parseFloat((0.2 + (col % 2) * 0.35).toFixed(2)),
+        };
+      }
+
       const newObject: EditorObject = {
         id: newId,
         name: template.name,
         category: template.category,
+        componentType: template.componentType || 'generic',
         visible: true,
         locked: false,
-        position: {
-          x: parseFloat(((Math.random() - 0.5) * 2.0).toFixed(2)),
-          y: template.category === 'filter' ? 1.4 : -1.2,
-          z: parseFloat(((Math.random() - 0.5) * 1.5).toFixed(2)),
-        },
+        position: spawnPos,
         rotation: { x: 0, y: 0, z: 0 },
         dimensions: { ...template.defaultDimensions },
         material: { ...template.defaultMaterial },
@@ -320,7 +346,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setObjects((prev) => [...prev, newObject]);
       setSelectedId(newId);
     },
-    [objects, pushHistory]
+    [objects, snapSettings, pushHistory]
   );
 
   // Undo / Redo

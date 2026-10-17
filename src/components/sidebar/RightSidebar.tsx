@@ -78,6 +78,9 @@ export const RightSidebar: React.FC = () => {
                 <div className="object-badge-row">
                   <div className="badge-tag-wrapper">
                     <span className="category-tag">{selectedObject.category}</span>
+                    {selectedObject.componentType && (
+                      <span className="component-type-tag">{selectedObject.componentType}</span>
+                    )}
                     {selectedObject.locked && (
                       <span className="locked-badge">
                         <Lock size={10} /> Locked

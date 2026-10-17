@@ -35,8 +35,22 @@ Whether you are an aquarist designing the optimal canister filtration flow, a st
 
 ---
 
-## ✨ Key Features
-
+- **Reusable Aquarium Filter Component Library**: 12+ recognizable 3D models with native geometries, authentic materials, and technical specs:
+  1. **Filter Container**: Open-top transparent acrylic basin with bottom plate, side walls, and rim flanges.
+  2. **Internal Divider**: Vertical baffle plate with bottom underflow clearance and top weir overflow notches.
+  3. **Coarse Sponge (20 PPI)**: Reticulated open-cell foam block with ribbed surface grooves for heavy debris capture.
+  4. **Fine Sponge (40 PPI)**: Dense micro-porous dark foam block for secondary particulate polishing and bacterial growth.
+  5. **Filter Floss Pad**: Soft, bonded white polyester fiber pad for micro-clarity polishing.
+  6. **Ceramic Bio Rings**: Hollow sintered glass ceramic cylinder cluster offering 850 m²/L specific surface area.
+  7. **Biological Media Balls**: Spherical polypropylene media with geometric lattice fins for maximum gas exchange.
+  8. **Submersible Pump (Powerhead)**: Compact mag-drive motor body with impeller volute, suction base, and top discharge nozzle.
+  9. **Straight Pipe**: Rigid cylindrical conduit with reinforced slip connection collars.
+  10. **90° Elbow Pipe**: Swept 90-degree plumbing elbow with dual socket fitting unions.
+  11. **Flexible Hose**: Corrugated ribbed anti-kink vinyl tubing for flexible equipment connection.
+  12. **Water Inlet**: Rigid suction tube with conical bottom debris guard slots and surface skimmer.
+  13. **Water Outlet**: Hydrodynamic flared lily pipe / duckbill outflow nozzle directing gentle surface agitation.
+- **Drag-and-Drop & 1-Click Adding**: Place components into the 3D viewport by dragging cards from the library or using the "+ Add to Tank" action with smart predictable staging placement.
+- **Unique Instance Identity**: Every placed component receives a unique ID, storing position, rotation, dimensions, category, and componentType.
 - **Interactive 3D CAD Viewport & Gizmos**: Full Three.js & React Three Fiber desktop-first CAD editor with orbit/pan/zoom, perspective/isometric/orthographic camera presets, and interactive 3D translation/rotation/scale gizmos (`TransformControls`).
 - **Object Selection & Outlining**: Direct viewport mesh raycasting with selection highlight boxes, floating identity badges, and synchronised tree hierarchy outliner.
 - **Bi-Directional Property Inspector**: Live synchronization between 3D viewport manipulations and the CAD properties panel (real-time position, Euler rotation in degrees, and millimeter/inch dimensions).

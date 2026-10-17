@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useEditor } from '../../context/EditorContext';
 import type { EditorObject } from '../../types/editor';
+import { ReusableFilterMesh } from './components/FilterComponents';
 
 // Selection Highlight Bounding Box
 const SelectionHighlight: React.FC<{ object: EditorObject }> = ({ object }) => {
@@ -950,9 +951,9 @@ export const Scene: React.FC = () => {
         </mesh>
       )}
 
-      {/* Dynamic User Objects */}
+      {/* Dynamic User Filter & Hardscape Objects */}
       {customObjects.map((obj) => (
-        <mesh
+        <group
           key={obj.id}
           position={[obj.position.x, obj.position.y, obj.position.z]}
           rotation={[
@@ -960,26 +961,13 @@ export const Scene: React.FC = () => {
             ((obj.rotation?.y || 0) * Math.PI) / 180,
             ((obj.rotation?.z || 0) * Math.PI) / 180,
           ]}
-          castShadow
-          receiveShadow
-          {...makeInteractive(obj.id)}
         >
-          {obj.category === 'hardscape' ? (
-            <dodecahedronGeometry args={[obj.dimensions.x / 2, 1]} />
-          ) : (
-            <boxGeometry
-              args={[obj.dimensions.x, obj.dimensions.y, obj.dimensions.z]}
-            />
-          )}
-          <meshStandardMaterial
-            color={obj.material.color}
-            roughness={obj.material.roughness}
-            metalness={obj.material.metalness}
-            transparent={obj.material.transparent}
-            opacity={obj.material.opacity}
-            wireframe={isWireframeAll || obj.material.wireframe}
+          <ReusableFilterMesh
+            object={obj}
+            isWireframeAll={isWireframeAll}
+            interactiveProps={makeInteractive(obj.id)}
           />
-        </mesh>
+        </group>
       ))}
     </group>
   );

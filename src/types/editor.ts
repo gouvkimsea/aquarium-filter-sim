@@ -33,6 +33,22 @@ export interface Vector3D {
   z: number;
 }
 
+export type FilterComponentType =
+  | 'filter-container'
+  | 'internal-divider'
+  | 'coarse-sponge'
+  | 'fine-sponge'
+  | 'filter-floss-pad'
+  | 'ceramic-bio-rings'
+  | 'bio-media-balls'
+  | 'submersible-pump'
+  | 'straight-pipe'
+  | 'elbow-pipe'
+  | 'flexible-hose'
+  | 'water-inlet'
+  | 'water-outlet'
+  | 'generic';
+
 export interface MaterialProperties {
   color: string;
   opacity: number;
@@ -46,6 +62,7 @@ export interface EditorObject {
   id: string;
   name: string;
   category: ObjectCategory;
+  componentType?: FilterComponentType;
   visible: boolean;
   locked?: boolean;
   position: Vector3D;
@@ -60,6 +77,7 @@ export interface ComponentTemplate {
   templateId: string;
   name: string;
   category: ObjectCategory;
+  componentType?: FilterComponentType;
   description: string;
   iconName: string;
   defaultDimensions: Vector3D;

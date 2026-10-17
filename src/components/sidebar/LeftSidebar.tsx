@@ -15,6 +15,7 @@ import {
   Check,
   Lock,
   Unlock,
+  GripVertical,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { COMPONENT_TEMPLATES } from '../../data/componentLibrary';
@@ -40,12 +41,22 @@ export const LeftSidebar: React.FC = () => {
   // Filter templates by search and category
   const filteredTemplates = useMemo(() => {
     return COMPONENT_TEMPLATES.filter((tpl) => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
-        tpl.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tpl.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tpl.specsSummary.toLowerCase().includes(searchQuery.toLowerCase());
+        tpl.name.toLowerCase().includes(q) ||
+        tpl.description.toLowerCase().includes(q) ||
+        tpl.specsSummary.toLowerCase().includes(q) ||
+        (tpl.componentType && tpl.componentType.toLowerCase().includes(q));
+
       const matchesCategory =
-        selectedCategory === 'all' || tpl.category === selectedCategory;
+        selectedCategory === 'all' ||
+        tpl.category === selectedCategory ||
+        (selectedCategory === 'filter' &&
+          (tpl.category === 'filter' ||
+            tpl.componentType === 'filter-container' ||
+            tpl.componentType === 'internal-divider' ||
+            tpl.componentType === 'submersible-pump'));
+
       return matchesSearch && matchesCategory;
     });
   }, [searchQuery, selectedCategory]);
@@ -54,6 +65,11 @@ export const LeftSidebar: React.FC = () => {
     addComponentFromLibrary(template);
     setRecentlyAddedId(template.templateId);
     setTimeout(() => setRecentlyAddedId(null), 1200);
+  };
+
+  const handleDragStart = (e: React.DragEvent, template: ComponentTemplate) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(template));
+    e.dataTransfer.effectAllowed = 'copy';
   };
 
   if (!layoutSettings.leftSidebarOpen) {
@@ -94,7 +110,7 @@ export const LeftSidebar: React.FC = () => {
             <input
               id="input-search-library"
               type="text"
-              placeholder="Search components, media, filters..."
+              placeholder="Search 12+ components, media, pipes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
@@ -105,11 +121,11 @@ export const LeftSidebar: React.FC = () => {
           <div className="category-chips">
             {[
               { id: 'all', label: 'All' },
-              { id: 'filter', label: 'Filters' },
+              { id: 'filter', label: 'Containers/Pumps' },
               { id: 'media', label: 'Media' },
-              { id: 'plumbing', label: 'Flow' },
+              { id: 'plumbing', label: 'Plumbing' },
               { id: 'aeration', label: 'Air' },
-              { id: 'hardscape', label: 'Scape' },
+              { id: 'hardscape', label: 'Hardscape' },
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -131,8 +147,14 @@ export const LeftSidebar: React.FC = () => {
                   key={tpl.templateId}
                   id={`card-${tpl.templateId}`}
                   className="component-card"
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, tpl)}
+                  title="Drag and drop into 3D Viewport or click Add"
                 >
                   <div className="card-top">
+                    <div className="card-drag-handle" title="Drag into 3D Viewport">
+                      <GripVertical size={14} />
+                    </div>
                     <div className="card-glyph-wrapper">
                       {tpl.category === 'filter' && <FilterIcon size={16} />}
                       {tpl.category === 'media' && <Layers size={16} />}
