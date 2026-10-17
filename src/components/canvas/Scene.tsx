@@ -13,18 +13,70 @@ const SelectionHighlight: React.FC<{ object: EditorObject }> = ({ object }) => {
       <mesh>
         <boxGeometry
           args={[
-            dimensions.x * 1.05,
-            dimensions.y * 1.05,
-            dimensions.z * 1.05,
+            dimensions.x * 1.05 + 0.02,
+            dimensions.y * 1.05 + 0.02,
+            dimensions.z * 1.05 + 0.02,
           ]}
         />
         <meshBasicMaterial
           color="#00f5d4"
           wireframe
           transparent
-          opacity={0.7}
+          opacity={0.8}
         />
       </mesh>
+      <Html position={[0, dimensions.y / 2 + 0.25, 0]} center>
+        <div className="selection-3d-pill">
+          {object.name}
+        </div>
+      </Html>
+    </group>
+  );
+};
+
+// Subtle CAD Coordinate Axes at Origin
+const CoordinateAxes: React.FC = () => {
+  return (
+    <group position={[-6.5, -2.04, -5.5]}>
+      {/* X Axis - Red */}
+      <mesh position={[0.75, 0.02, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <cylinderGeometry args={[0.02, 0.02, 1.5, 8]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+      <mesh position={[1.55, 0.02, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.06, 0.15, 8]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+
+      {/* Y Axis - Green */}
+      <mesh position={[0, 0.75, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 1.5, 8]} />
+        <meshBasicMaterial color="#10b981" />
+      </mesh>
+      <mesh position={[0, 1.55, 0]}>
+        <coneGeometry args={[0.06, 0.15, 8]} />
+        <meshBasicMaterial color="#10b981" />
+      </mesh>
+
+      {/* Z Axis - Blue */}
+      <mesh position={[0, 0.02, 0.75]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 1.5, 8]} />
+        <meshBasicMaterial color="#38bdf8" />
+      </mesh>
+      <mesh position={[0, 0.02, 1.55]} rotation={[Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[0.06, 0.15, 8]} />
+        <meshBasicMaterial color="#38bdf8" />
+      </mesh>
+
+      <Html position={[1.8, 0.05, 0]} center>
+        <span className="axis-label x-axis">X</span>
+      </Html>
+      <Html position={[0, 1.8, 0]} center>
+        <span className="axis-label y-axis">Y</span>
+      </Html>
+      <Html position={[0, 0.05, 1.8]} center>
+        <span className="axis-label z-axis">Z</span>
+      </Html>
     </group>
   );
 };
@@ -40,11 +92,12 @@ export const Scene: React.FC = () => {
 
   const bubblesRef = useRef<THREE.Points>(null);
   const waterRef = useRef<THREE.Mesh>(null);
-  const outflowWaterRef = useRef<THREE.Mesh>(null);
+  const filterWaterRef = useRef<THREE.Mesh>(null);
+  const waterfallStreamRef = useRef<THREE.Mesh>(null);
 
   const isWireframeAll = viewportSettings.viewMode === 'wireframe';
 
-  // Bubbles particle generation
+  // Aeration microbubble particles
   const bubbleCount = 120;
   const [bubblePositions, bubbleSpeeds] = useMemo(() => {
     const pos = new Float32Array(bubbleCount * 3);
@@ -58,13 +111,12 @@ export const Scene: React.FC = () => {
     return [pos, spd];
   }, [bubbleCount]);
 
-  // Animation frame loop
+  // Frame tick animation for fluids and aeration
   useFrame((_, delta) => {
     if (!simulation.isRunning) return;
-
     const rate = delta * simulation.speed;
 
-    // Animate bubble particles
+    // Aeration bubble plumes
     if (bubblesRef.current) {
       const posArray = bubblesRef.current.geometry.attributes.position.array as Float32Array;
       for (let i = 0; i < bubbleCount; i++) {
@@ -77,80 +129,140 @@ export const Scene: React.FC = () => {
       bubblesRef.current.geometry.attributes.position.needsUpdate = true;
     }
 
-    // Subtle water surface oscillation
+    // Gentle tank water surface oscillation
     if (waterRef.current) {
       waterRef.current.position.y = 0.05 + Math.sin(Date.now() * 0.002 * simulation.speed) * 0.015;
     }
 
-    // Filter waterfall stream return
-    if (outflowWaterRef.current) {
-      outflowWaterRef.current.scale.y = 1 + Math.sin(Date.now() * 0.009 * simulation.speed) * 0.06;
+    // Internal filter fluid pulsation
+    if (filterWaterRef.current) {
+      filterWaterRef.current.position.y = 1.3 + Math.sin(Date.now() * 0.003 * simulation.speed) * 0.008;
+    }
+
+    // Filter waterfall cascade stream
+    if (waterfallStreamRef.current) {
+      waterfallStreamRef.current.scale.y = 1 + Math.sin(Date.now() * 0.009 * simulation.speed) * 0.06;
     }
   });
 
-  // Find specific key objects
-  const tankObj = objects.find((o) => o.id === 'obj-tank-enclosure' && o.visible);
-  const waterObj = objects.find((o) => o.id === 'obj-water-body' && o.visible);
-  const substrateObj = objects.find((o) => o.id === 'obj-substrate-bed' && o.visible);
-  const filterObj = objects.find((o) => o.id === 'obj-filter-unit' && o.visible);
-  const intakeObj = objects.find((o) => o.id === 'obj-intake-pipe' && o.visible);
-  const airStoneObj = objects.find((o) => o.id === 'obj-air-stone' && o.visible);
+  // Helper to retrieve an object safely
+  const getObj = (id: string) => objects.find((o) => o.id === id && o.visible);
 
-  // Dynamic objects (custom components added from library or media items)
-  const otherObjects = objects.filter(
+  // Key Objects
+  const tankObj = getObj('obj-tank-enclosure');
+  const waterObj = getObj('obj-water-body');
+  const substrateObj = getObj('obj-substrate-bed');
+
+  // Filter Container Components
+  const filterBottomObj = getObj('obj-filter-bottom-plate');
+  const filterWallFront = getObj('obj-filter-wall-front');
+  const filterWallBack = getObj('obj-filter-wall-back');
+  const filterWallLeft = getObj('obj-filter-wall-left');
+  const filterWallRight = getObj('obj-filter-wall-right');
+  const filterBaffle1 = getObj('obj-filter-baffle-1');
+  const filterBaffle2 = getObj('obj-filter-baffle-2');
+  const filterWaterInterior = getObj('obj-filter-water-interior');
+  const filterSpillway = getObj('obj-filter-spillway');
+  const intakeObj = getObj('obj-intake-pipe');
+
+  // Media Objects
+  const mediaStage1 = getObj('obj-media-stage-1');
+  const mediaStage2 = getObj('obj-media-stage-2');
+  const mediaStage3 = getObj('obj-media-stage-3');
+
+  // Aeration & Hardscape
+  const airStoneObj = getObj('obj-air-stone');
+  const stoneA = getObj('obj-stone-a');
+  const stoneB = getObj('obj-stone-b');
+
+  // Dynamic objects added from library
+  const customObjects = objects.filter(
     (o) =>
       o.visible &&
       ![
         'obj-tank-enclosure',
         'obj-water-body',
         'obj-substrate-bed',
-        'obj-filter-unit',
+        'obj-filter-bottom-plate',
+        'obj-filter-wall-front',
+        'obj-filter-wall-back',
+        'obj-filter-wall-left',
+        'obj-filter-wall-right',
+        'obj-filter-baffle-1',
+        'obj-filter-baffle-2',
+        'obj-filter-water-interior',
+        'obj-filter-spillway',
         'obj-intake-pipe',
+        'obj-media-stage-1',
+        'obj-media-stage-2',
+        'obj-media-stage-3',
         'obj-air-stone',
+        'obj-stone-a',
+        'obj-stone-b',
       ].includes(o.id)
   );
 
   const selectedObj = objects.find((o) => o.id === selectedId);
 
+  // Reusable interactive mesh props
+  const makeInteractive = (id: string) => ({
+    onClick: (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      selectObject(id);
+    },
+    onPointerOver: (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      document.body.style.cursor = 'pointer';
+    },
+    onPointerOut: () => {
+      document.body.style.cursor = 'auto';
+    },
+  });
+
   return (
     <group
       onPointerMissed={() => {
-        // Deselect when clicking empty space
         selectObject(null);
       }}
     >
-      {/* 3D Coordinate Grid */}
+      {/* ============================================================== */}
+      {/* 1. SUBTLE GROUND GRID & SHADOW RECEIVER                        */}
+      {/* ============================================================== */}
       {viewportSettings.showGrid && (
-        <gridHelper
-          args={[20, 20, '#00f5d4', '#1e293b']}
-          position={[0, -2.05, 0]}
-        />
+        <>
+          {/* Major Grid Lines */}
+          <gridHelper
+            args={[24, 24, '#38bdf8', '#1e293b']}
+            position={[0, -2.05, 0]}
+          />
+          {/* Subtle Ground Plane receiving soft studio shadows */}
+          <mesh
+            position={[0, -2.06, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            receiveShadow
+          >
+            <planeGeometry args={[30, 30]} />
+            <shadowMaterial opacity={0.25} />
+          </mesh>
+          <CoordinateAxes />
+        </>
       )}
 
-      {/* Selected Object Bounding Box Highlight */}
+      {/* Selected Object Active 3D Highlight */}
       {selectedObj && selectedObj.visible && (
         <SelectionHighlight object={selectedObj} />
       )}
 
       {/* ============================================================== */}
-      {/* 1. TANK ENCLOSURE GLASS & RIMS                                 */}
+      {/* 2. AQUARIUM TANK GLASS ENCLOSURE & RIMS                        */}
       {/* ============================================================== */}
       {tankObj && (
         <group
           position={[tankObj.position.x, tankObj.position.y, tankObj.position.z]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(tankObj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
+          {...makeInteractive(tankObj.id)}
         >
-          {/* Main Glass Walls */}
-          <mesh>
+          {/* Transparent Glass Walls */}
+          <mesh castShadow receiveShadow renderOrder={5}>
             <boxGeometry
               args={[
                 tankObj.dimensions.x,
@@ -163,6 +275,7 @@ export const Scene: React.FC = () => {
               transparent
               opacity={tankObj.material.opacity}
               roughness={tankObj.material.roughness}
+              metalness={0.05}
               transmission={0.88}
               ior={1.5}
               thickness={0.2}
@@ -171,8 +284,8 @@ export const Scene: React.FC = () => {
             />
           </mesh>
 
-          {/* Top & Bottom Rims */}
-          <mesh position={[0, tankObj.dimensions.y / 2, 0]}>
+          {/* Top Matte Rim */}
+          <mesh position={[0, tankObj.dimensions.y / 2, 0]} castShadow>
             <boxGeometry
               args={[
                 tankObj.dimensions.x + 0.15,
@@ -182,7 +295,9 @@ export const Scene: React.FC = () => {
             />
             <meshStandardMaterial color="#1a202c" roughness={0.3} metalness={0.6} />
           </mesh>
-          <mesh position={[0, -tankObj.dimensions.y / 2, 0]}>
+
+          {/* Bottom Stand Base Rim */}
+          <mesh position={[0, -tankObj.dimensions.y / 2, 0]} castShadow receiveShadow>
             <boxGeometry
               args={[
                 tankObj.dimensions.x + 0.15,
@@ -193,7 +308,6 @@ export const Scene: React.FC = () => {
             <meshStandardMaterial color="#0f172a" roughness={0.4} metalness={0.5} />
           </mesh>
 
-          {/* 3D In-Scene Measurement HUD Labels */}
           {viewportSettings.showMeasurements && (
             <Html position={[0, tankObj.dimensions.y / 2 + 0.35, 0]} center>
               <div className="canvas-measure-tag">
@@ -207,22 +321,14 @@ export const Scene: React.FC = () => {
       )}
 
       {/* ============================================================== */}
-      {/* 2. WATER VOLUME                                                */}
+      {/* 3. TANK WATER BODY & RIVERBED SUBSTRATE                        */}
       {/* ============================================================== */}
       {waterObj && (
         <mesh
           ref={waterRef}
           position={[waterObj.position.x, waterObj.position.y, waterObj.position.z]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(waterObj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
+          renderOrder={2}
+          {...makeInteractive(waterObj.id)}
         >
           <boxGeometry
             args={[
@@ -236,16 +342,13 @@ export const Scene: React.FC = () => {
             transparent
             opacity={waterObj.material.opacity}
             roughness={waterObj.material.roughness}
-            transmission={0.8}
+            transmission={0.82}
             ior={1.33}
             wireframe={isWireframeAll || waterObj.material.wireframe}
           />
         </mesh>
       )}
 
-      {/* ============================================================== */}
-      {/* 3. SUBSTRATE BED                                               */}
-      {/* ============================================================== */}
       {substrateObj && (
         <mesh
           position={[
@@ -253,16 +356,9 @@ export const Scene: React.FC = () => {
             substrateObj.position.y,
             substrateObj.position.z,
           ]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(substrateObj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
+          castShadow
+          receiveShadow
+          {...makeInteractive(substrateObj.id)}
         >
           <boxGeometry
             args={[
@@ -281,67 +377,402 @@ export const Scene: React.FC = () => {
       )}
 
       {/* ============================================================== */}
-      {/* 4. HOB FILTER UNIT & INTAKE TUBE                               */}
+      {/* 4. REALISTIC TRANSPARENT RECTANGULAR FILTER CONTAINER          */}
+      {/*    Visible walls, base plate, internal baffles, and media      */}
       {/* ============================================================== */}
-      {filterObj && (
-        <group
-          position={[
-            filterObj.position.x,
-            filterObj.position.y,
-            filterObj.position.z,
-          ]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(filterObj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
-        >
-          {/* Main Housing Box */}
-          <mesh position={[0, 0.4, -0.45]}>
+      <group position={[0, 0, 0]}>
+        {/* A. Container Bottom Plate */}
+        {filterBottomObj && (
+          <mesh
+            position={[
+              filterBottomObj.position.x,
+              filterBottomObj.position.y,
+              filterBottomObj.position.z,
+            ]}
+            castShadow
+            receiveShadow
+            renderOrder={3}
+            {...makeInteractive(filterBottomObj.id)}
+          >
             <boxGeometry
               args={[
-                filterObj.dimensions.x,
-                filterObj.dimensions.y,
-                filterObj.dimensions.z,
+                filterBottomObj.dimensions.x,
+                filterBottomObj.dimensions.y,
+                filterBottomObj.dimensions.z,
               ]}
             />
             <meshPhysicalMaterial
-              color={filterObj.material.color}
+              color={filterBottomObj.material.color}
               transparent
-              opacity={filterObj.material.opacity}
-              roughness={filterObj.material.roughness}
-              metalness={filterObj.material.metalness}
-              wireframe={isWireframeAll || filterObj.material.wireframe}
+              opacity={filterBottomObj.material.opacity}
+              roughness={filterBottomObj.material.roughness}
+              metalness={filterBottomObj.material.metalness}
+              wireframe={isWireframeAll || filterBottomObj.material.wireframe}
             />
           </mesh>
+        )}
 
-          {/* Lid */}
-          <mesh position={[0, 1.25, -0.45]}>
+        {/* B. Front Transparent Wall (Crystal Clear Acrylic) */}
+        {filterWallFront && (
+          <mesh
+            position={[
+              filterWallFront.position.x,
+              filterWallFront.position.y,
+              filterWallFront.position.z,
+            ]}
+            castShadow
+            renderOrder={8}
+            {...makeInteractive(filterWallFront.id)}
+          >
             <boxGeometry
               args={[
-                filterObj.dimensions.x + 0.05,
-                0.1,
-                filterObj.dimensions.z + 0.05,
+                filterWallFront.dimensions.x,
+                filterWallFront.dimensions.y,
+                filterWallFront.dimensions.z,
               ]}
             />
-            <meshStandardMaterial color="#0f172a" roughness={0.3} />
+            <meshPhysicalMaterial
+              color={filterWallFront.material.color}
+              transparent
+              opacity={filterWallFront.material.opacity}
+              roughness={filterWallFront.material.roughness}
+              metalness={0.05}
+              transmission={0.92}
+              ior={1.49}
+              thickness={0.12}
+              side={THREE.DoubleSide}
+              wireframe={isWireframeAll || filterWallFront.material.wireframe}
+            />
           </mesh>
+        )}
 
-          {/* Spillway Lip */}
-          <mesh position={[0.1, 0.3, 0.05]}>
-            <boxGeometry args={[0.8, 0.08, 0.3]} />
-            <meshStandardMaterial color="#475569" roughness={0.2} metalness={0.5} />
+        {/* C. Rear Wall Panel (Tinted Smoke Acrylic) */}
+        {filterWallBack && (
+          <mesh
+            position={[
+              filterWallBack.position.x,
+              filterWallBack.position.y,
+              filterWallBack.position.z,
+            ]}
+            castShadow
+            renderOrder={8}
+            {...makeInteractive(filterWallBack.id)}
+          >
+            <boxGeometry
+              args={[
+                filterWallBack.dimensions.x,
+                filterWallBack.dimensions.y,
+                filterWallBack.dimensions.z,
+              ]}
+            />
+            <meshPhysicalMaterial
+              color={filterWallBack.material.color}
+              transparent
+              opacity={filterWallBack.material.opacity}
+              roughness={filterWallBack.material.roughness}
+              metalness={filterWallBack.material.metalness}
+              transmission={0.4}
+              side={THREE.DoubleSide}
+              wireframe={isWireframeAll || filterWallBack.material.wireframe}
+            />
           </mesh>
+        )}
 
-          {/* Flow Return Stream */}
-          {filterObj.parameters.motorStatus !== false && (
-            <mesh ref={outflowWaterRef} position={[0.1, -0.05, 0.15]}>
-              <planeGeometry args={[0.75, 0.65]} />
+        {/* D. Left Transparent Wall */}
+        {filterWallLeft && (
+          <mesh
+            position={[
+              filterWallLeft.position.x,
+              filterWallLeft.position.y,
+              filterWallLeft.position.z,
+            ]}
+            castShadow
+            renderOrder={8}
+            {...makeInteractive(filterWallLeft.id)}
+          >
+            <boxGeometry
+              args={[
+                filterWallLeft.dimensions.x,
+                filterWallLeft.dimensions.y,
+                filterWallLeft.dimensions.z,
+              ]}
+            />
+            <meshPhysicalMaterial
+              color={filterWallLeft.material.color}
+              transparent
+              opacity={filterWallLeft.material.opacity}
+              roughness={filterWallLeft.material.roughness}
+              transmission={0.92}
+              ior={1.49}
+              thickness={0.12}
+              side={THREE.DoubleSide}
+              wireframe={isWireframeAll || filterWallLeft.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* E. Right Transparent Wall */}
+        {filterWallRight && (
+          <mesh
+            position={[
+              filterWallRight.position.x,
+              filterWallRight.position.y,
+              filterWallRight.position.z,
+            ]}
+            castShadow
+            renderOrder={8}
+            {...makeInteractive(filterWallRight.id)}
+          >
+            <boxGeometry
+              args={[
+                filterWallRight.dimensions.x,
+                filterWallRight.dimensions.y,
+                filterWallRight.dimensions.z,
+              ]}
+            />
+            <meshPhysicalMaterial
+              color={filterWallRight.material.color}
+              transparent
+              opacity={filterWallRight.material.opacity}
+              roughness={filterWallRight.material.roughness}
+              transmission={0.92}
+              ior={1.49}
+              thickness={0.12}
+              side={THREE.DoubleSide}
+              wireframe={isWireframeAll || filterWallRight.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* F. Corner Silicone Edge Seams (Gives crisp physical boundaries to glass container) */}
+        <group position={[2.2, 1.4, -1.75]}>
+          {/* 4 Vertical corner pillars */}
+          {[
+            [-0.98, -0.47],
+            [0.98, -0.47],
+            [-0.98, 0.47],
+            [0.98, 0.47],
+          ].map(([cx, cz], idx) => (
+            <mesh key={idx} position={[cx, 0, cz]}>
+              <boxGeometry args={[0.04, 1.5, 0.04]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.3} />
+            </mesh>
+          ))}
+          {/* Top perimeter rim accent */}
+          <mesh position={[0, 0.76, 0]}>
+            <boxGeometry args={[2.04, 0.04, 1.04]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.5} />
+          </mesh>
+        </group>
+
+        {/* G. Internal Chamber Baffle 1 (Underflow divider) */}
+        {filterBaffle1 && (
+          <mesh
+            position={[
+              filterBaffle1.position.x,
+              filterBaffle1.position.y,
+              filterBaffle1.position.z,
+            ]}
+            castShadow
+            renderOrder={4}
+            {...makeInteractive(filterBaffle1.id)}
+          >
+            <boxGeometry
+              args={[
+                filterBaffle1.dimensions.x,
+                filterBaffle1.dimensions.y,
+                filterBaffle1.dimensions.z,
+              ]}
+            />
+            <meshPhysicalMaterial
+              color={filterBaffle1.material.color}
+              transparent
+              opacity={filterBaffle1.material.opacity}
+              roughness={filterBaffle1.material.roughness}
+              transmission={0.65}
+              wireframe={isWireframeAll || filterBaffle1.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* H. Internal Chamber Baffle 2 (Weir overflow divider) */}
+        {filterBaffle2 && (
+          <mesh
+            position={[
+              filterBaffle2.position.x,
+              filterBaffle2.position.y,
+              filterBaffle2.position.z,
+            ]}
+            castShadow
+            renderOrder={4}
+            {...makeInteractive(filterBaffle2.id)}
+          >
+            <boxGeometry
+              args={[
+                filterBaffle2.dimensions.x,
+                filterBaffle2.dimensions.y,
+                filterBaffle2.dimensions.z,
+              ]}
+            />
+            <meshPhysicalMaterial
+              color={filterBaffle2.material.color}
+              transparent
+              opacity={filterBaffle2.material.opacity}
+              roughness={filterBaffle2.material.roughness}
+              transmission={0.65}
+              wireframe={isWireframeAll || filterBaffle2.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* I. Internal Filter Water Fluid Volume */}
+        {filterWaterInterior && (
+          <mesh
+            ref={filterWaterRef}
+            position={[
+              filterWaterInterior.position.x,
+              filterWaterInterior.position.y,
+              filterWaterInterior.position.z,
+            ]}
+            renderOrder={3}
+            {...makeInteractive(filterWaterInterior.id)}
+          >
+            <boxGeometry
+              args={[
+                filterWaterInterior.dimensions.x,
+                filterWaterInterior.dimensions.y,
+                filterWaterInterior.dimensions.z,
+              ]}
+            />
+            <meshPhysicalMaterial
+              color={filterWaterInterior.material.color}
+              transparent
+              opacity={filterWaterInterior.material.opacity}
+              roughness={0.06}
+              transmission={0.8}
+              ior={1.33}
+              wireframe={isWireframeAll || filterWaterInterior.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* J. Stage 1 Mechanical Foam (Chamber 1) */}
+        {mediaStage1 && (
+          <mesh
+            position={[
+              mediaStage1.position.x,
+              mediaStage1.position.y,
+              mediaStage1.position.z,
+            ]}
+            castShadow
+            renderOrder={4}
+            {...makeInteractive(mediaStage1.id)}
+          >
+            <boxGeometry
+              args={[
+                mediaStage1.dimensions.x,
+                mediaStage1.dimensions.y,
+                mediaStage1.dimensions.z,
+              ]}
+            />
+            <meshStandardMaterial
+              color={mediaStage1.material.color}
+              roughness={mediaStage1.material.roughness}
+              metalness={mediaStage1.material.metalness}
+              wireframe={isWireframeAll || mediaStage1.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* K. Stage 2 Bio-Ceramic Ring Matrix (Chamber 2) */}
+        {mediaStage2 && (
+          <mesh
+            position={[
+              mediaStage2.position.x,
+              mediaStage2.position.y,
+              mediaStage2.position.z,
+            ]}
+            castShadow
+            renderOrder={4}
+            {...makeInteractive(mediaStage2.id)}
+          >
+            <boxGeometry
+              args={[
+                mediaStage2.dimensions.x,
+                mediaStage2.dimensions.y,
+                mediaStage2.dimensions.z,
+              ]}
+            />
+            <meshStandardMaterial
+              color={mediaStage2.material.color}
+              roughness={mediaStage2.material.roughness}
+              metalness={mediaStage2.material.metalness}
+              wireframe={isWireframeAll || mediaStage2.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* L. Stage 3 Chemical Activated Carbon (Chamber 3) */}
+        {mediaStage3 && (
+          <mesh
+            position={[
+              mediaStage3.position.x,
+              mediaStage3.position.y,
+              mediaStage3.position.z,
+            ]}
+            castShadow
+            renderOrder={4}
+            {...makeInteractive(mediaStage3.id)}
+          >
+            <boxGeometry
+              args={[
+                mediaStage3.dimensions.x,
+                mediaStage3.dimensions.y,
+                mediaStage3.dimensions.z,
+              ]}
+            />
+            <meshStandardMaterial
+              color={mediaStage3.material.color}
+              roughness={mediaStage3.material.roughness}
+              metalness={mediaStage3.material.metalness}
+              wireframe={isWireframeAll || mediaStage3.material.wireframe}
+            />
+          </mesh>
+        )}
+
+        {/* M. Filter Waterfall Return Spillway */}
+        {filterSpillway && (
+          <group
+            position={[
+              filterSpillway.position.x,
+              filterSpillway.position.y,
+              filterSpillway.position.z,
+            ]}
+            {...makeInteractive(filterSpillway.id)}
+          >
+            <mesh castShadow>
+              <boxGeometry
+                args={[
+                  filterSpillway.dimensions.x,
+                  filterSpillway.dimensions.y,
+                  filterSpillway.dimensions.z,
+                ]}
+              />
+              <meshStandardMaterial
+                color={filterSpillway.material.color}
+                roughness={filterSpillway.material.roughness}
+                metalness={filterSpillway.material.metalness}
+              />
+            </mesh>
+
+            {/* Waterfall cascading stream returning to tank */}
+            <mesh
+              ref={waterfallStreamRef}
+              position={[0, -0.28, 0.12]}
+              rotation={[0.3, 0, 0]}
+              renderOrder={7}
+            >
+              <planeGeometry args={[0.8, 0.6]} />
               <meshPhysicalMaterial
                 color="#7dd3fc"
                 transparent
@@ -351,113 +782,94 @@ export const Scene: React.FC = () => {
                 side={THREE.DoubleSide}
               />
             </mesh>
-          )}
+          </group>
+        )}
 
-          {viewportSettings.showMeasurements && (
-            <Html position={[0, 1.5, -0.45]} center>
-              <div className="canvas-measure-tag filter-tag">
-                {filterObj.parameters.flowRateGPH} GPH
-              </div>
-            </Html>
-          )}
-        </group>
-      )}
+        {/* N. Filter Intake Pipe Assembly */}
+        {intakeObj && (
+          <group
+            position={[
+              intakeObj.position.x,
+              intakeObj.position.y,
+              intakeObj.position.z,
+            ]}
+            {...makeInteractive(intakeObj.id)}
+          >
+            {/* Suction Pipe Tube */}
+            <mesh castShadow renderOrder={5}>
+              <cylinderGeometry
+                args={[
+                  intakeObj.dimensions.x / 2,
+                  intakeObj.dimensions.x / 2,
+                  intakeObj.dimensions.y,
+                  16,
+                ]}
+              />
+              <meshPhysicalMaterial
+                color={intakeObj.material.color}
+                transparent
+                opacity={intakeObj.material.opacity}
+                roughness={0.1}
+                transmission={0.8}
+                wireframe={isWireframeAll || intakeObj.material.wireframe}
+              />
+            </mesh>
 
-      {/* Intake Tube Assembly */}
-      {intakeObj && (
-        <group
-          position={[
-            intakeObj.position.x,
-            intakeObj.position.y,
-            intakeObj.position.z,
-          ]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(intakeObj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
-        >
-          {/* Suction Pipe */}
-          <mesh>
-            <cylinderGeometry
-              args={[
-                intakeObj.dimensions.x / 2,
-                intakeObj.dimensions.x / 2,
-                intakeObj.dimensions.y,
-                16,
-              ]}
-            />
-            <meshPhysicalMaterial
-              color={intakeObj.material.color}
-              transparent
-              opacity={intakeObj.material.opacity}
-              roughness={intakeObj.material.roughness}
-              transmission={0.8}
-              wireframe={isWireframeAll || intakeObj.material.wireframe}
-            />
-          </mesh>
+            {/* Bottom Slotted Strainer Basket */}
+            <mesh
+              position={[0, -intakeObj.dimensions.y / 2 - 0.15, 0]}
+              castShadow
+            >
+              <cylinderGeometry
+                args={[
+                  intakeObj.dimensions.x * 0.75,
+                  intakeObj.dimensions.x * 0.5,
+                  0.35,
+                  12,
+                ]}
+              />
+              <meshStandardMaterial color="#1e293b" roughness={0.5} />
+            </mesh>
 
-          {/* Bottom Slotted Strainer */}
-          <mesh position={[0, -intakeObj.dimensions.y / 2 - 0.15, 0]}>
-            <cylinderGeometry
-              args={[
-                intakeObj.dimensions.x * 0.75,
-                intakeObj.dimensions.x * 0.5,
-                0.35,
-                12,
-              ]}
-            />
-            <meshStandardMaterial color="#1e293b" roughness={0.5} />
-          </mesh>
-        </group>
-      )}
+            {/* Inflow Directional Arrow Marker */}
+            <mesh position={[0, -intakeObj.dimensions.y / 2 + 0.35, 0]}>
+              <coneGeometry args={[0.1, 0.2, 8]} />
+              <meshBasicMaterial color="#38bdf8" />
+            </mesh>
+          </group>
+        )}
+      </group>
 
       {/* ============================================================== */}
-      {/* 5. AERATION AIR STONE & BUBBLE PARTICLES                       */}
+      {/* 5. AERATION AIR STONE & MICROBUBBLES                           */}
       {/* ============================================================== */}
       {airStoneObj && (
-        <group
+        <mesh
           position={[
             airStoneObj.position.x,
             airStoneObj.position.y,
             airStoneObj.position.z,
           ]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(airStoneObj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
+          castShadow
+          {...makeInteractive(airStoneObj.id)}
         >
-          {/* Air stone diffuser block */}
-          <mesh>
-            <boxGeometry
-              args={[
-                airStoneObj.dimensions.x,
-                airStoneObj.dimensions.y,
-                airStoneObj.dimensions.z,
-              ]}
-            />
-            <meshStandardMaterial
-              color={airStoneObj.material.color}
-              roughness={airStoneObj.material.roughness}
-              metalness={airStoneObj.material.metalness}
-              wireframe={isWireframeAll || airStoneObj.material.wireframe}
-            />
-          </mesh>
-        </group>
+          <boxGeometry
+            args={[
+              airStoneObj.dimensions.x,
+              airStoneObj.dimensions.y,
+              airStoneObj.dimensions.z,
+            ]}
+          />
+          <meshStandardMaterial
+            color={airStoneObj.material.color}
+            roughness={airStoneObj.material.roughness}
+            metalness={airStoneObj.material.metalness}
+            wireframe={isWireframeAll || airStoneObj.material.wireframe}
+          />
+        </mesh>
       )}
 
-      {/* Floating Microbubble Plume (Active if air stone is active) */}
+      {/* Microbubble Plume */}
       {airStoneObj && airStoneObj.parameters.bubblePlumeActive !== false && (
         <points ref={bubblesRef}>
           <bufferGeometry>
@@ -477,22 +889,50 @@ export const Scene: React.FC = () => {
       )}
 
       {/* ============================================================== */}
-      {/* 6. DYNAMIC OBJECTS (Media, Extra Filters, Rocks)               */}
+      {/* 6. HARDSCAPE ROCKS & CUSTOM LIBRARY OBJECTS                    */}
       {/* ============================================================== */}
-      {otherObjects.map((obj) => (
+      {stoneA && (
+        <mesh
+          position={[stoneA.position.x, stoneA.position.y, stoneA.position.z]}
+          castShadow
+          receiveShadow
+          {...makeInteractive(stoneA.id)}
+        >
+          <dodecahedronGeometry args={[stoneA.dimensions.x / 2, 1]} />
+          <meshStandardMaterial
+            color={stoneA.material.color}
+            roughness={stoneA.material.roughness}
+            metalness={stoneA.material.metalness}
+            wireframe={isWireframeAll || stoneA.material.wireframe}
+          />
+        </mesh>
+      )}
+
+      {stoneB && (
+        <mesh
+          position={[stoneB.position.x, stoneB.position.y, stoneB.position.z]}
+          castShadow
+          receiveShadow
+          {...makeInteractive(stoneB.id)}
+        >
+          <dodecahedronGeometry args={[stoneB.dimensions.x / 2, 1]} />
+          <meshStandardMaterial
+            color={stoneB.material.color}
+            roughness={stoneB.material.roughness}
+            metalness={stoneB.material.metalness}
+            wireframe={isWireframeAll || stoneB.material.wireframe}
+          />
+        </mesh>
+      )}
+
+      {/* Dynamic User Objects */}
+      {customObjects.map((obj) => (
         <mesh
           key={obj.id}
           position={[obj.position.x, obj.position.y, obj.position.z]}
-          onClick={(e) => {
-            e.stopPropagation();
-            selectObject(obj.id);
-          }}
-          onPointerOver={() => {
-            document.body.style.cursor = 'pointer';
-          }}
-          onPointerOut={() => {
-            document.body.style.cursor = 'auto';
-          }}
+          castShadow
+          receiveShadow
+          {...makeInteractive(obj.id)}
         >
           {obj.category === 'hardscape' ? (
             <dodecahedronGeometry args={[obj.dimensions.x / 2, 1]} />

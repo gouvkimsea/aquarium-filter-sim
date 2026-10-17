@@ -255,9 +255,11 @@ export const TopToolbar: React.FC = () => {
             title="Camera View Angle"
           >
             <option value="isometric">Perspective</option>
+            <option value="top">Top (Inside Filter)</option>
             <option value="front">Front View</option>
-            <option value="top">Top View</option>
-            <option value="side">Side View</option>
+            <option value="side">Right Side View</option>
+            <option value="left">Left Side View</option>
+            <option value="back">Rear View</option>
             <option value="filter-closeup">Filter Closeup</option>
           </select>
         </div>
@@ -283,14 +285,22 @@ export const TopToolbar: React.FC = () => {
         </div>
 
         {/* Lighting Mode Quick Selector */}
-        <div className="button-group">
+        <div className="button-group" title="Studio / Aquarium Lighting Preset">
+          <button
+            id="btn-light-studio"
+            className={`segmented-btn ${viewportSettings.lightingPreset === 'studio' ? 'active' : ''}`}
+            onClick={() => setLightingPreset('studio')}
+            title="Clean CAD Studio Lighting"
+          >
+            <Sun size={13} />
+          </button>
           <button
             id="btn-light-daylight"
             className={`segmented-btn ${viewportSettings.lightingPreset === 'daylight' ? 'active' : ''}`}
             onClick={() => setLightingPreset('daylight')}
             title="Daylight Spectrum"
           >
-            <Sun size={13} />
+            <Eye size={13} />
           </button>
           <button
             id="btn-light-actinic"
@@ -298,7 +308,7 @@ export const TopToolbar: React.FC = () => {
             onClick={() => setLightingPreset('actinic')}
             title="Actinic Marine Blue"
           >
-            <Eye size={13} />
+            <Layers size={13} />
           </button>
           <button
             id="btn-light-night"

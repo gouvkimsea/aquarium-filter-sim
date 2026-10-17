@@ -334,37 +334,187 @@ export const INITIAL_SCENE_OBJECTS: EditorObject[] = [
     },
   },
 
-  // 4. HOB Filter Unit
+  // 4. Transparent Filter Container - Bottom Plate
   {
-    id: 'obj-filter-unit',
-    name: 'Hang-On-Back Filter (HOB)',
+    id: 'obj-filter-bottom-plate',
+    name: 'Filter Container Bottom Plate',
     category: 'filter',
     visible: true,
-    position: { x: 2.2, y: 1.4, z: -1.75 },
-    dimensions: { x: 1.8, y: 1.6, z: 0.9 },
+    position: { x: 2.2, y: 0.62, z: -1.75 },
+    dimensions: { x: 2.0, y: 0.05, z: 1.0 },
     material: {
-      color: '#334155',
+      color: '#475569',
       opacity: 0.85,
       roughness: 0.2,
-      metalness: 0.4,
+      metalness: 0.3,
       wireframe: false,
       transparent: true,
     },
     parameters: {
-      flowRateGPH: 150,
-      motorStatus: true,
-      mediaSlotsCount: 3,
-      turnoverPerHour: 2.1,
+      thicknessMm: 6,
+      materialType: 'High-Density Cast Acrylic',
     },
   },
 
-  // 5. Filter Intake Pipe
+  // 5. Transparent Filter Container - Front Wall
+  {
+    id: 'obj-filter-wall-front',
+    name: 'Filter Front Transparent Wall',
+    category: 'filter',
+    visible: true,
+    position: { x: 2.2, y: 1.4, z: -1.26 },
+    dimensions: { x: 2.0, y: 1.5, z: 0.04 },
+    material: {
+      color: '#a0e9fd',
+      opacity: 0.25,
+      roughness: 0.05,
+      metalness: 0.1,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      opticalClarity: '99.2% UV-Stabilized Glass/Acrylic',
+      thicknessMm: 4,
+    },
+  },
+
+  // 6. Transparent Filter Container - Rear Wall
+  {
+    id: 'obj-filter-wall-back',
+    name: 'Filter Rear Wall Panel',
+    category: 'filter',
+    visible: true,
+    position: { x: 2.2, y: 1.4, z: -2.24 },
+    dimensions: { x: 2.0, y: 1.5, z: 0.04 },
+    material: {
+      color: '#1e293b',
+      opacity: 0.75,
+      roughness: 0.25,
+      metalness: 0.3,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      mountBracketType: 'Hang-On Rim Clamp',
+      thicknessMm: 5,
+    },
+  },
+
+  // 7. Transparent Filter Container - Left Wall
+  {
+    id: 'obj-filter-wall-left',
+    name: 'Filter Left Transparent Wall',
+    category: 'filter',
+    visible: true,
+    position: { x: 1.22, y: 1.4, z: -1.75 },
+    dimensions: { x: 0.04, y: 1.5, z: 0.96 },
+    material: {
+      color: '#a0e9fd',
+      opacity: 0.25,
+      roughness: 0.05,
+      metalness: 0.1,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      thicknessMm: 4,
+    },
+  },
+
+  // 8. Transparent Filter Container - Right Wall
+  {
+    id: 'obj-filter-wall-right',
+    name: 'Filter Right Transparent Wall',
+    category: 'filter',
+    visible: true,
+    position: { x: 3.18, y: 1.4, z: -1.75 },
+    dimensions: { x: 0.04, y: 1.5, z: 0.96 },
+    material: {
+      color: '#a0e9fd',
+      opacity: 0.25,
+      roughness: 0.05,
+      metalness: 0.1,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      thicknessMm: 4,
+    },
+  },
+
+  // 9. Filter Chamber Baffle 1 (Intake to Bio underflow divider)
+  {
+    id: 'obj-filter-baffle-1',
+    name: 'Chamber Baffle 1 (Underflow)',
+    category: 'filter',
+    visible: true,
+    position: { x: 1.85, y: 1.5, z: -1.75 },
+    dimensions: { x: 0.03, y: 1.25, z: 0.92 },
+    material: {
+      color: '#38bdf8',
+      opacity: 0.45,
+      roughness: 0.1,
+      metalness: 0.1,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      flowPath: 'Bottom Underflow Slot (15mm gap)',
+      function: 'Directs mechanical filtrate into bio chamber floor',
+    },
+  },
+
+  // 10. Filter Chamber Baffle 2 (Bio to Chemical overflow weir)
+  {
+    id: 'obj-filter-baffle-2',
+    name: 'Chamber Baffle 2 (Weir Overflow)',
+    category: 'filter',
+    visible: true,
+    position: { x: 2.55, y: 1.35, z: -1.75 },
+    dimensions: { x: 0.03, y: 1.1, z: 0.92 },
+    material: {
+      color: '#38bdf8',
+      opacity: 0.45,
+      roughness: 0.1,
+      metalness: 0.1,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      flowPath: 'Top Overflow Cascading Weir',
+      function: 'Maintains constant bio media water submersion level',
+    },
+  },
+
+  // 11. Internal Filter Fluid Volume
+  {
+    id: 'obj-filter-water-interior',
+    name: 'Internal Filter Fluid Stream',
+    category: 'water',
+    visible: true,
+    position: { x: 2.2, y: 1.3, z: -1.75 },
+    dimensions: { x: 1.9, y: 1.25, z: 0.9 },
+    material: {
+      color: '#00b4d8',
+      opacity: 0.38,
+      roughness: 0.05,
+      metalness: 0.05,
+      wireframe: false,
+      transparent: true,
+    },
+    parameters: {
+      internalVolumeLiters: 2.15,
+      velocityMs: 0.18,
+    },
+  },
+
+  // 12. Filter Intake Assembly
   {
     id: 'obj-intake-pipe',
     name: 'Filter Intake Assembly',
     category: 'plumbing',
     visible: true,
-    position: { x: 1.65, y: 0.2, z: -1.45 },
+    position: { x: 1.55, y: 0.2, z: -1.45 },
     dimensions: { x: 0.16, y: 2.6, z: 0.16 },
     material: {
       color: '#64748b',
@@ -380,14 +530,14 @@ export const INITIAL_SCENE_OBJECTS: EditorObject[] = [
     },
   },
 
-  // 6. Stage 1: Mechanical Foam
+  // 13. Stage 1: Mechanical Foam (Seated in Chamber 1)
   {
     id: 'obj-media-stage-1',
-    name: 'Stage 1: Mechanical Foam',
+    name: 'Stage 1: Mechanical Foam (Chamber 1)',
     category: 'media',
     visible: true,
-    position: { x: 1.75, y: 1.75, z: -2.2 },
-    dimensions: { x: 0.35, y: 1.1, z: 0.7 },
+    position: { x: 1.55, y: 1.25, z: -1.75 },
+    dimensions: { x: 0.48, y: 1.05, z: 0.82 },
     material: {
       color: '#2563eb',
       opacity: 0.95,
@@ -403,14 +553,14 @@ export const INITIAL_SCENE_OBJECTS: EditorObject[] = [
     },
   },
 
-  // 7. Stage 2: Biological Rings
+  // 14. Stage 2: Biological Rings (Seated in Chamber 2)
   {
     id: 'obj-media-stage-2',
-    name: 'Stage 2: Bio-Ceramic Matrix',
+    name: 'Stage 2: Bio-Ceramic Matrix (Chamber 2)',
     category: 'media',
     visible: true,
-    position: { x: 2.2, y: 1.75, z: -2.2 },
-    dimensions: { x: 0.38, y: 1.1, z: 0.7 },
+    position: { x: 2.2, y: 1.2, z: -1.75 },
+    dimensions: { x: 0.58, y: 0.95, z: 0.82 },
     material: {
       color: '#cbd5e1',
       opacity: 1.0,
@@ -426,14 +576,14 @@ export const INITIAL_SCENE_OBJECTS: EditorObject[] = [
     },
   },
 
-  // 8. Stage 3: Chemical Carbon
+  // 15. Stage 3: Chemical Carbon (Seated in Chamber 3)
   {
     id: 'obj-media-stage-3',
-    name: 'Stage 3: Chemical Carbon',
+    name: 'Stage 3: Chemical Carbon (Chamber 3)',
     category: 'media',
     visible: true,
-    position: { x: 2.65, y: 1.75, z: -2.2 },
-    dimensions: { x: 0.35, y: 1.1, z: 0.7 },
+    position: { x: 2.85, y: 1.2, z: -1.75 },
+    dimensions: { x: 0.48, y: 0.95, z: 0.82 },
     material: {
       color: '#1e293b',
       opacity: 1.0,
@@ -446,6 +596,28 @@ export const INITIAL_SCENE_OBJECTS: EditorObject[] = [
       adsorptionCapacityMgG: 450,
       saturationPercent: 28,
       tanninRemovalRate: 'Optimal',
+    },
+  },
+
+  // 16. Waterfall Spillway Overflow Lip
+  {
+    id: 'obj-filter-spillway',
+    name: 'Waterfall Return Spillway',
+    category: 'plumbing',
+    visible: true,
+    position: { x: 2.2, y: 1.55, z: -1.15 },
+    dimensions: { x: 0.85, y: 0.06, z: 0.3 },
+    material: {
+      color: '#475569',
+      opacity: 0.9,
+      roughness: 0.2,
+      metalness: 0.5,
+      wireframe: false,
+      transparent: false,
+    },
+    parameters: {
+      spillwayWidthCm: 18,
+      cascadeType: 'Surface Oxygenating Waterfall',
     },
   },
 

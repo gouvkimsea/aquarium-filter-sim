@@ -62,7 +62,7 @@ const MAX_HISTORY = 30;
 
 export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [objects, setObjects] = useState<EditorObject[]>(INITIAL_SCENE_OBJECTS);
-  const [selectedId, setSelectedId] = useState<string | null>('obj-filter-unit');
+  const [selectedId, setSelectedId] = useState<string | null>('obj-filter-wall-front');
 
   // Undo / Redo history
   const [history, setHistory] = useState<EditorObject[][]>([]);
@@ -311,7 +311,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const resetScene = useCallback(() => {
     pushHistory(objects);
     setObjects(INITIAL_SCENE_OBJECTS);
-    setSelectedId('obj-filter-unit');
+    setSelectedId('obj-filter-wall-front');
   }, [objects, pushHistory]);
 
   const exportProjectJSON = useCallback(() => {

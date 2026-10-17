@@ -9,8 +9,15 @@ export type ObjectCategory =
 
 export type UnitSystem = 'metric' | 'imperial';
 export type ViewMode = 'rendered' | 'wireframe' | 'xray';
-export type CameraPreset = 'isometric' | 'front' | 'top' | 'side' | 'filter-closeup';
-export type LightingPreset = 'daylight' | 'actinic' | 'night';
+export type CameraPreset =
+  | 'isometric'
+  | 'front'
+  | 'top'
+  | 'side'
+  | 'left'
+  | 'back'
+  | 'filter-closeup';
+export type LightingPreset = 'daylight' | 'studio' | 'actinic' | 'night';
 
 export interface Vector3D {
   x: number;
