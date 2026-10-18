@@ -252,6 +252,33 @@ export function getComponentPorts(object: EditorObject): ConnectionPort[] {
       ];
     }
 
+    case 'coarse-sponge':
+    case 'fine-sponge':
+    case 'filter-floss-pad':
+    case 'ceramic-bio-rings':
+    case 'bio-media-balls': {
+      return [
+        {
+          id: 'media-in',
+          name: 'Media Bed Inflow',
+          type: 'chamber',
+          direction: 'bidirectional',
+          localOffset: { x: 0, y: -dimY / 2, z: 0 },
+          normal: { x: 0, y: -1, z: 0 },
+          diameterMm: 25,
+        },
+        {
+          id: 'media-out',
+          name: 'Media Bed Outflow',
+          type: 'chamber',
+          direction: 'bidirectional',
+          localOffset: { x: 0, y: dimY / 2, z: 0 },
+          normal: { x: 0, y: 1, z: 0 },
+          diameterMm: 25,
+        },
+      ];
+    }
+
     default:
       return [];
   }

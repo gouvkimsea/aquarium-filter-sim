@@ -19,6 +19,10 @@
   - [3. Chemical Filtration](#3-chemical-filtration)
   - [4. Tank Water Parameters](#4-tank-water-parameters)
 - [Supported Filter Types](#-supported-filter-types)
+- [Hydraulic Simulation Engine](#-hydraulic-simulation-engine)
+  - [Governing Equations & Physics](#governing-equations--physics)
+  - [Assumptions & Engineering Limitations](#assumptions--engineering-limitations)
+  - [Supported Topologies & Failure Diagnostics](#supported-topologies--failure-diagnostics)
 - [Quick Start](#-quick-start)
 - [Project Structure](#-project-structure)
 - [Roadmap](#-roadmap)
@@ -35,6 +39,15 @@ Whether you are an aquarist designing the optimal canister filtration flow, a st
 
 ---
 
+- **Testable 1D Hydraulic Simulation Module**:
+  - **Decoupled Architecture**: Standalone, headless TypeScript physics engine completely independent of React component rendering.
+  - **Graph-Based Flow Path Tracing**: Traverses component objects and connection graph edges to map pump suction, discharge, pipes, elbows, media blocks, and return outlets.
+  - **Darcy-Weisbach Friction & Minor Losses**: Calculates velocity, Reynolds numbers, Swamee-Jain Colebrook friction factors, and fitting resistance ($K$-factors).
+  - **Centrifugal Pump Curve & Operating Point Solver**: Intersects the pump head-capacity curve $H(Q) = H_{max} (1 - (Q/Q_{max})^2)$ with system dynamic head curve to find true operating flow $Q_{op}$.
+  - **Static Lift & Dead-Head Detection**: Correctly identifies when static elevation head $H_{static} \ge H_{max}$, stalling pump flow to $0\text{ L/h}$.
+  - **Symmetric & Asymmetric Parallel Branches**: Balances head loss across parallel pipe splits while strictly conserving total mass ($Q_{total} = \sum Q_i$).
+  - **Honest Diagnostics**: Flags disconnected paths, dead ends, missing pumps, and unsupported multi-pump mesh loops as explicit un-solved states rather than inventing fictional flow numbers.
+  - **Structured Assumptions & Illustrative Estimates**: Flags outputs as illustrative estimates when laboratory pump dyno curves are unavailable and provides full engineering assumptions.
 - **Local Project Persistence & File Export System**:
   - **Versioned Project JSON Schema (`schemaVersion: 1`)**: Complete state preservation including container dimensions, component definitions, instance IDs, 3D transforms, connection graph edges, fluid simulation state, and custom component parameters.
   - **Browser IndexedDB Storage**: High-capacity local persistence using dual object stores (`projects` and `appState`), with seamless fallback to `localStorage`.
@@ -159,6 +172,74 @@ graph TD
 
 ---
 
+## ⚡ Hydraulic Simulation Engine
+
+The **Aquarium Filter Simulator** incorporates an independent, testable **1D hydraulic calculation engine** (`src/simulation/hydraulic/`) that models real-world flow rates, friction losses, and pump operating points across configured plumbing networks.
+
+### Governing Equations & Physics
+
+```mermaid
+graph LR
+    Pump[Centrifugal Pump<br/>H_max, Q_max] -->|H_pump Q| Junction{Operating Point}
+    System[System Resistance<br/>Friction + Minor + Static] -->|H_sys Q| Junction
+    Junction --> Solved[Solved Operating Flow Q_op<br/>Head Balanced]
+```
+
+1. **Major Friction Loss (Darcy-Weisbach Equation)**:
+   $$h_f = f \cdot \frac{L}{D} \cdot \frac{v^2}{2g}$$
+   Where $f$ is the Darcy friction factor, computed across laminar ($\text{Re} < 2000$), transitional, and turbulent regimes via the explicit **Swamee-Jain** approximation of the Colebrook-White equation:
+   $$f = \frac{0.25}{\left[\log_{10}\left(\frac{\epsilon}{3.7 D} + \frac{5.74}{\text{Re}^{0.9}}\right)\right]^2}$$
+   with standard smooth PVC/acrylic absolute roughness $\epsilon = 0.0015\text{ mm}$.
+
+2. **Minor Fitting Losses ($K$-Factor Method)**:
+   $$h_m = K \cdot \frac{v^2}{2g}$$
+   Standard loss coefficients applied by the model:
+   - **90° Sweep Elbow**: $K = 0.95$
+   - **Inlet Strainer Basket**: $K = 1.80$
+   - **Lily Pipe Flared Nozzle**: $K = 0.55$
+   - **Duckbill Return Jet**: $K = 0.85$
+   - **Slip Socket Union**: $K = 0.15$
+
+3. **Porous Media Flow Resistance (Darcy's Law)**:
+   $$\Delta h_{media} = R_{media} \cdot Q$$
+   Applied to media blocks based on porosity and pore count (20 PPI coarse foam, 40 PPI fine foam, filter floss, sintered glass ceramic rings, and bio-balls), with optional $+150\%$ resistance multiplier for dirty/clogged media.
+
+4. **Static Head (Elevation Lift)**:
+   $$H_{static} = \max(0, z_{outlet} - z_{pump})$$
+   - *Open Sump Mode*: Vertical height differential from pump water level to highest return outlet.
+   - *Closed Canister Mode*: Balanced siphon head where inlet and outlet elevations cancel ($\Delta z = 0$).
+
+5. **Centrifugal Pump Curve & Operating Point**:
+   Aquarium centrifugal impellers follow a parabolic head-capacity curve:
+   $$H_{pump}(Q) = H_{max} \cdot \left[1 - \left(\frac{Q}{Q_{max}}\right)^2\right]$$
+   The operating point $(Q_{op}, H_{op})$ is solved by finding the intersection with the total dynamic system curve:
+   $$H_{pump}(Q) = H_{static} + \sum h_f(Q) + \sum h_m(Q) + \sum \Delta h_{media}(Q)$$
+   Solved via a bounded bisection root-finder to $< 0.01\text{ L/h}$ convergence.
+
+6. **Parallel Branch Balancing**:
+   When flow splits into parallel branches, the model allocates flow $Q_i$ such that:
+   $$\Delta H_1(Q_1) = \Delta H_2(Q_2) = \dots = \Delta H_{parallel} \quad \text{and} \quad \sum_{i=1}^N Q_i = Q_{total}$$
+
+### Assumptions & Engineering Limitations
+
+| Dimension | Model Treatment | Assumption / Boundary |
+| :--- | :--- | :--- |
+| **Model Type** | 1D Network Hydraulics | Not computational fluid dynamics (CFD). Flow is assumed fully developed and 1-dimensional. |
+| **Fluid Properties** | Fresh water at 25°C | Density $\rho = 1000\text{ kg/m}^3$, kinematic viscosity $\nu = 0.893 \times 10^{-6}\text{ m}^2/\text{s}$. |
+| **Pump Curves** | Standard Parabolic H-Q | Labeled as an **illustrative estimate** because actual manufacturer dynamometer test curves vary by impeller trim and voltage. |
+| **Max Flow vs Operating Flow** | Strictly Differentiated | A pump rated at $1000\text{ L/h}$ will never operate at $1000\text{ L/h}$ once connected to pipes and fittings due to inevitable friction and static lift. |
+| **Dead-Head Stalling** | Flow = 0 | If $H_{static} \ge H_{max}$, flow rate drops strictly to zero with an explicit warning. |
+
+### Supported Topologies & Failure Diagnostics
+
+- **Series Conduits**: Single path from pump through fittings and media to outlet. Fully solved.
+- **Parallel Splits**: Diverging pipe branches leading to separate or recombined outlets. Solved with balanced head loss and mass conservation.
+- **Disconnected Ports**: Explicitly flagged as `disconnected` with diagnostic guidance; no fictional flow is calculated.
+- **Dead-End Terminations**: Flow paths ending without an active return nozzle are flagged as `dead-end`.
+- **Multi-Pump Mesh Networks**: Multiple unsynchronized pumps in competing loops cannot be reliably solved by a simplified 1D model and are reported as `unsolved` with an explicit explanation rather than inventing false numbers.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -237,8 +318,8 @@ aquarium-filter-sim/
 - [x] Custom filter geometry & chamber editing (baffles, usable volume, transparent/opaque/cutaway modes)
 - [x] Plumbing connection graph & magnetic endpoint snapping
 - [x] Local project persistence (IndexedDB, draft recovery, project library, .aquasim / .json export & import)
+- [x] Multi-stage filter media hydraulics & flow velocity simulation (1D Darcy-Weisbach, Colebrook-White, pump curves, parallel branches)
 - [ ] Core numerical simulation engine (Ammonia $\to$ Nitrite $\to$ Nitrate)
-- [ ] Multi-stage filter media hydraulics & flow velocity simulation
 - [ ] Warning triggers (Ammonia spikes, oxygen depletion, filter overflows)
 - [ ] Exportable telemetry data (CSV / JSON log export)
 - [ ] Interactive UI with real-time parameter sliders (temp, bioload, filter flow)
