@@ -14,7 +14,7 @@
  * - Prominent "Simplified Simulation (Illustrative Estimate)" labeling
  */
 
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
@@ -51,6 +51,7 @@ interface PathTrajectory {
 export const WaterFlowVisualizer: React.FC = () => {
   const {
     objects,
+    connections,
     hydraulicResult,
     simulation,
     toggleSimulation,
@@ -222,6 +223,21 @@ export const WaterFlowVisualizer: React.FC = () => {
     particlesProgressRef.current = arr;
   }, [trajectories.length, totalParticleCount]);
 
+  // Reset particle progress back to initial staggered positions on reset
+  useEffect(() => {
+    if (simulation.simulatedMinutes === 0 && !simulation.isRunning) {
+      const arr = particlesProgressRef.current;
+      for (let tIdx = 0; tIdx < trajectories.length; tIdx++) {
+        for (let pIdx = 0; pIdx < PARTICLES_PER_PATH; pIdx++) {
+          const globalIdx = tIdx * PARTICLES_PER_PATH + pIdx;
+          if (globalIdx < arr.length) {
+            arr[globalIdx] = pIdx / PARTICLES_PER_PATH;
+          }
+        }
+      }
+    }
+  }, [simulation.simulatedMinutes, simulation.isRunning, trajectories.length]);
+
   // Status flags
   const isOperating = hydraulicResult.status === 'solved' || hydraulicResult.status === 'estimated';
   const isDeadHeaded = hydraulicResult.status === 'pump-dead-headed';
@@ -312,29 +328,82 @@ export const WaterFlowVisualizer: React.FC = () => {
 
   // Identify disconnected or open ports for visual alert beacons
   const disconnectedIssues = useMemo(() => {
-    if (!isDisconnected && !isDeadHeaded) return [];
-    const issues: Array<{ id: string; name: string; position: THREE.Vector3; message: string }> = [];
+    if (!isDisconnected && !isDeadHeaded && !isUnsolved) return [];
+    const issues: Array<{ id: string; name: string; position: THREE.Vector3; message: string; color: string }> = [];
 
-    if (isDisconnected) {
-      // Find open pump discharge or dead-end pipe
+    if (isDeadHeaded) {
+      const pump = objects.find((o) => o.componentType === 'submersible-pump');
+      if (pump) {
+        issues.push({
+          id: 'pump_stalled',
+          name: pump.name,
+          position: new THREE.Vector3(pump.position.x, pump.position.y + 0.16, pump.position.z),
+          message: 'Pump Stalled: Static elevation lift exceeds max head (0 L/h)',
+          color: '#f59e0b',
+        });
+      }
+    } else if (isUnsolved) {
+      const pump = objects.find((o) => o.componentType === 'submersible-pump');
+      if (pump) {
+        issues.push({
+          id: 'unsolved_network',
+          name: pump.name,
+          position: new THREE.Vector3(pump.position.x, pump.position.y + 0.16, pump.position.z),
+          message: hydraulicResult.warnings[0] || 'Unsolved network topology',
+          color: '#ef4444',
+        });
+      }
+    } else if (isDisconnected) {
+      // Find open pump discharge
       const pump = objects.find((o) => o.componentType === 'submersible-pump');
       if (pump) {
         const ports = getComponentPorts(pump);
         const discharge = ports.find((p) => p.id === 'discharge');
         if (discharge) {
-          const pos = getWorldPortPosition(pump, discharge);
-          issues.push({
-            id: 'pump_open_discharge',
-            name: pump.name,
-            position: new THREE.Vector3(pos.x, pos.y + 0.12, pos.z),
-            message: 'Pump discharge open — No connected pipe',
-          });
+          const isConn = connections.some(
+            (c) => (c.fromComponentId === pump.id && c.fromPortId === discharge.id) ||
+                   (c.toComponentId === pump.id && c.toPortId === discharge.id)
+          );
+          if (!isConn) {
+            const pos = getWorldPortPosition(pump, discharge);
+            issues.push({
+              id: 'pump_open_discharge',
+              name: pump.name,
+              position: new THREE.Vector3(pos.x, pos.y + 0.12, pos.z),
+              message: 'Pump discharge open — No connected pipe',
+              color: '#ef4444',
+            });
+          }
+        }
+      }
+
+      // Check for plumbing components with disconnected ports
+      const plumbingComps = objects.filter((o) =>
+        Boolean(o.componentType && ['straight-pipe', 'elbow-pipe', 'flexible-hose'].includes(o.componentType))
+      );
+      for (const comp of plumbingComps) {
+        const ports = getComponentPorts(comp);
+        for (const port of ports) {
+          const isConn = connections.some(
+            (c) => (c.fromComponentId === comp.id && c.fromPortId === port.id) ||
+                   (c.toComponentId === comp.id && c.toPortId === port.id)
+          );
+          if (!isConn) {
+            const pos = getWorldPortPosition(comp, port);
+            issues.push({
+              id: `open_${comp.id}_${port.id}`,
+              name: comp.name,
+              position: new THREE.Vector3(pos.x, pos.y + 0.12, pos.z),
+              message: `Open ${port.name} on ${comp.name}`,
+              color: '#f59e0b',
+            });
+          }
         }
       }
     }
 
     return issues;
-  }, [isDisconnected, isDeadHeaded, objects]);
+  }, [isDisconnected, isDeadHeaded, isUnsolved, objects, connections, hydraulicResult.warnings]);
 
   // Telemetry numbers
   const opPoint = hydraulicResult.operatingPoint;
@@ -347,7 +416,21 @@ export const WaterFlowVisualizer: React.FC = () => {
 
   return (
     <group name="water-flow-visualizer-system">
-      {/* 1. Instanced Water Droplet Particles */}
+      {/* 1. Luminous Fluid Core Conduit Trails */}
+      {trajectories.map((traj) => (
+        <mesh key={`trail_${traj.id}`}>
+          <tubeGeometry args={[traj.curve, 36, 0.015, 8, false]} />
+          <meshBasicMaterial
+            color={isDeadHeaded ? '#f59e0b' : '#00f5d4'}
+            transparent
+            opacity={simulation.isRunning && isOperating && traj.flowLph > 0 ? 0.35 : 0.12}
+            depthTest={true}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+
+      {/* 2. Instanced Water Droplet Particles */}
       {trajectories.length > 0 && (
         <instancedMesh
           ref={instancedMeshRef}
@@ -369,7 +452,7 @@ export const WaterFlowVisualizer: React.FC = () => {
         </instancedMesh>
       )}
 
-      {/* 2. Directional Chevrons / Flow Arrows */}
+      {/* 3. Directional Chevrons / Flow Arrows */}
       {trajectories.length > 0 && isOperating && flowLph > 0 && (
         <instancedMesh
           ref={arrowMeshRef}
@@ -386,16 +469,16 @@ export const WaterFlowVisualizer: React.FC = () => {
         </instancedMesh>
       )}
 
-      {/* 3. Disconnected Port Alert Beacon Glyphs */}
+      {/* 4. Disconnected Port Alert Beacon Glyphs */}
       {disconnectedIssues.map((issue) => (
         <group key={issue.id} position={[issue.position.x, issue.position.y, issue.position.z]}>
           <mesh>
-            <sphereGeometry args={[0.06, 16, 16]} />
-            <meshBasicMaterial color="#ef4444" transparent opacity={0.85} />
+            <sphereGeometry args={[0.045, 16, 16]} />
+            <meshBasicMaterial color={issue.color} transparent opacity={0.88} />
           </mesh>
-          <Html position={[0, 0.18, 0]} center distanceFactor={10} zIndexRange={[120, 0]}>
+          <Html position={[0, 0.15, 0]} center distanceFactor={10} zIndexRange={[120, 0]}>
             <div className="flow-alert-3d-badge">
-              <AlertTriangle size={14} className="text-amber-400" />
+              <AlertTriangle size={14} className={issue.color === '#ef4444' ? 'text-red-400' : 'text-amber-400'} />
               <span>{issue.message}</span>
             </div>
           </Html>
