@@ -26,6 +26,7 @@ import {
   CheckCircle2,
   AlertCircle,
   GitBranch,
+  UnfoldVertical,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import {
@@ -64,6 +65,7 @@ export const RightSidebar: React.FC = () => {
     addDividerToContainer,
     setMetricUnit,
     setContainerViewMode,
+    toggleExplodedView,
     viewportSettings,
     connections,
     activeConnectingPort,
@@ -960,6 +962,15 @@ export const RightSidebar: React.FC = () => {
                           >
                             <Scissors size={13} />
                             <span>Cutaway</span>
+                          </button>
+                          <button
+                            id="btn-view-mode-exploded"
+                            className={`mode-btn ${viewportSettings.explodedView ? 'active' : ''}`}
+                            onClick={toggleExplodedView}
+                            title="Exploded Assembly View (Disassemble baffles & media)"
+                          >
+                            <UnfoldVertical size={13} />
+                            <span>Exploded</span>
                           </button>
                         </div>
                       </div>

@@ -38,6 +38,23 @@ export const LeftSidebar: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(null);
 
+  const categoryCounts = useMemo(() => {
+    return {
+      all: COMPONENT_TEMPLATES.length,
+      filter: COMPONENT_TEMPLATES.filter(
+        (t) =>
+          t.category === 'filter' ||
+          t.componentType === 'filter-container' ||
+          t.componentType === 'internal-divider' ||
+          t.componentType === 'submersible-pump'
+      ).length,
+      media: COMPONENT_TEMPLATES.filter((t) => t.category === 'media').length,
+      plumbing: COMPONENT_TEMPLATES.filter((t) => t.category === 'plumbing').length,
+      aeration: COMPONENT_TEMPLATES.filter((t) => t.category === 'aeration').length,
+      hardscape: COMPONENT_TEMPLATES.filter((t) => t.category === 'hardscape').length,
+    };
+  }, []);
+
   // Filter templates by search and category
   const filteredTemplates = useMemo(() => {
     return COMPONENT_TEMPLATES.filter((tpl) => {
@@ -120,12 +137,12 @@ export const LeftSidebar: React.FC = () => {
           {/* Category Filter Chips */}
           <div className="category-chips">
             {[
-              { id: 'all', label: 'All' },
-              { id: 'filter', label: 'Containers/Pumps' },
-              { id: 'media', label: 'Media' },
-              { id: 'plumbing', label: 'Plumbing' },
-              { id: 'aeration', label: 'Air' },
-              { id: 'hardscape', label: 'Hardscape' },
+              { id: 'all', label: 'All', count: categoryCounts.all },
+              { id: 'filter', label: 'Containers/Pumps', count: categoryCounts.filter },
+              { id: 'media', label: 'Media', count: categoryCounts.media },
+              { id: 'plumbing', label: 'Plumbing', count: categoryCounts.plumbing },
+              { id: 'aeration', label: 'Air', count: categoryCounts.aeration },
+              { id: 'hardscape', label: 'Hardscape', count: categoryCounts.hardscape },
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -133,7 +150,8 @@ export const LeftSidebar: React.FC = () => {
                 className={`category-chip ${selectedCategory === cat.id ? 'active' : ''}`}
                 onClick={() => setSelectedCategory(cat.id)}
               >
-                {cat.label}
+                <span>{cat.label}</span>
+                <span className="category-chip-count">{cat.count}</span>
               </button>
             ))}
           </div>
@@ -197,8 +215,23 @@ export const LeftSidebar: React.FC = () => {
 
             {filteredTemplates.length === 0 && (
               <div className="empty-search-state">
-                <Search size={24} className="text-dim" />
-                <p>No components match your search.</p>
+                <Search size={28} className="empty-search-icon" />
+                <h4 className="empty-title">No matching components</h4>
+                <p className="empty-desc">
+                  {searchQuery
+                    ? `No components match "${searchQuery}".`
+                    : 'No components in this category.'}
+                </p>
+                <button
+                  id="btn-clear-component-search"
+                  className="btn-clear-search"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('all');
+                  }}
+                >
+                  Reset Search & Filters
+                </button>
               </div>
             )}
           </div>

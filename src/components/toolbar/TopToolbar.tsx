@@ -32,12 +32,15 @@ import {
   FileDown,
   Tag,
   Check,
+  UnfoldVertical,
+  Keyboard,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import type { ViewMode, CameraPreset, LightingPreset } from '../../types/editor';
 import { ProjectManagerModal } from '../modals/ProjectManagerModal';
 import { SaveAsDialog } from '../modals/SaveAsDialog';
 import { UnsavedChangesDialog } from '../modals/UnsavedChangesDialog';
+import { KeyboardShortcutsModal } from '../modals/KeyboardShortcutsModal';
 
 export const TopToolbar: React.FC = () => {
   const {
@@ -53,6 +56,7 @@ export const TopToolbar: React.FC = () => {
     viewportSettings,
     updateViewportSettings,
     setContainerViewMode,
+    toggleExplodedView,
     layoutSettings,
     toggleLeftSidebar,
     toggleRightSidebar,
@@ -69,6 +73,8 @@ export const TopToolbar: React.FC = () => {
     newProject,
     saveProject,
     exportProjectFile,
+    isShortcutsModalOpen,
+    setIsShortcutsModalOpen,
   } = useEditor();
 
   const [showFileMenu, setShowFileMenu] = useState(false);
@@ -443,6 +449,14 @@ export const TopToolbar: React.FC = () => {
           >
             <Scissors size={14} />
           </button>
+          <button
+            id="tb-btn-container-exploded"
+            className={`segmented-btn ${viewportSettings.explodedView ? 'active' : ''}`}
+            onClick={toggleExplodedView}
+            title="Exploded Assembly View (Disassemble baffles & media)"
+          >
+            <UnfoldVertical size={14} />
+          </button>
         </div>
 
         {/* View Mode (Solid / Wireframe / X-Ray) */}
@@ -543,6 +557,17 @@ export const TopToolbar: React.FC = () => {
 
         <div className="toolbar-separator" />
 
+        {/* Keyboard Shortcuts Reference */}
+        <button
+          id="btn-open-shortcuts"
+          className="toolbar-btn icon-only"
+          onClick={() => setIsShortcutsModalOpen(true)}
+          title="Keyboard Shortcuts & CAD Navigation (?)"
+          aria-label="Keyboard Shortcuts"
+        >
+          <Keyboard size={15} />
+        </button>
+
         {/* Fullscreen & Right Sidebar Toggle */}
         <button
           id="btn-fullscreen-toggle"
@@ -575,6 +600,10 @@ export const TopToolbar: React.FC = () => {
         onClose={() => setShowSaveAsModal(false)}
       />
       <UnsavedChangesDialog />
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
     </header>
   );
 };

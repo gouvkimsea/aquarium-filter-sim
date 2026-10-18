@@ -14,7 +14,7 @@ import type {
   SimulationState,
 } from '../types/editor';
 
-const DEFAULT_VIEWPORT: ViewportSettings = {
+export const DEFAULT_VIEWPORT: ViewportSettings = {
   viewMode: 'rendered',
   cameraPreset: 'isometric',
   lightingPreset: 'studio',
@@ -24,9 +24,10 @@ const DEFAULT_VIEWPORT: ViewportSettings = {
   unitSystem: 'imperial',
   metricUnit: 'mm',
   containerViewMode: 'transparent',
+  explodedView: false,
 };
 
-const DEFAULT_SIMULATION: SimulationState = {
+export const DEFAULT_SIMULATION: SimulationState = {
   isRunning: true,
   speed: 1.0,
   elapsedSeconds: 0,

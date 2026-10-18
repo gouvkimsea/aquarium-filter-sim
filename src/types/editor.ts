@@ -132,6 +132,7 @@ export interface ViewportSettings {
   unitSystem: UnitSystem;
   metricUnit: MetricUnit;
   containerViewMode: ContainerViewMode;
+  explodedView: boolean;
 }
 
 export interface LayoutSettings {

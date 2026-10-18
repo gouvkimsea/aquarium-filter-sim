@@ -11,18 +11,23 @@ import {
   Trash2,
   X,
   Plus,
+  Target,
 } from 'lucide-react';
 import { Scene } from './Scene';
 import { EnvironmentLighting } from './EnvironmentLighting';
 import { TransformGizmo } from './TransformGizmo';
 import { useEditor } from '../../context/EditorContext';
-import type { CameraPreset, ComponentTemplate } from '../../types/editor';
+import type { CameraPreset, ComponentTemplate, EditorObject } from '../../types/editor';
 
 interface ViewportProps {
   onContextLost?: () => void;
 }
 
-const CameraController: React.FC<{ preset: CameraPreset }> = ({ preset }) => {
+const CameraController: React.FC<{
+  preset: CameraPreset;
+  focusTrigger: number;
+  selectedObject: EditorObject | null;
+}> = ({ preset, focusTrigger, selectedObject }) => {
   const controlsRef = useRef<OrbitControlsImpl>(null);
 
   useEffect(() => {
@@ -63,6 +68,23 @@ const CameraController: React.FC<{ preset: CameraPreset }> = ({ preset }) => {
     controls.update();
   }, [preset]);
 
+  // Frame / Focus selected object on trigger
+  useEffect(() => {
+    if (!controlsRef.current || focusTrigger === 0 || !selectedObject) return;
+    const controls = controlsRef.current;
+    const { x, y, z } = selectedObject.position;
+    controls.target.set(x, y, z);
+    const dimMax = Math.max(
+      selectedObject.dimensions.x,
+      selectedObject.dimensions.y,
+      selectedObject.dimensions.z,
+      0.6
+    );
+    const dist = Math.max(dimMax * 2.8, 1.8);
+    controls.object.position.set(x + dist * 0.75, y + dist * 0.55, z + dist * 0.85);
+    controls.update();
+  }, [focusTrigger, selectedObject]);
+
   return (
     <OrbitControls
       ref={controlsRef}
@@ -93,6 +115,8 @@ export const AquariumViewport: React.FC<ViewportProps> = ({ onContextLost }) => 
     deleteObject,
     deselectObject,
     addComponentFromLibrary,
+    focusTrigger,
+    focusSelectedObject,
   } = useEditor();
 
   const [isDragOver, setIsDragOver] = useState(false);
@@ -193,6 +217,15 @@ export const AquariumViewport: React.FC<ViewportProps> = ({ onContextLost }) => 
         >
           🔍 FILTER
         </button>
+        <button
+          id="hud-cam-focus"
+          className={`hud-cam-btn focus-hud-btn ${selectedObject ? 'active' : 'disabled'}`}
+          onClick={focusSelectedObject}
+          disabled={!selectedObject}
+          title={selectedObject ? `Frame Camera on ${selectedObject.name} (F)` : 'Select an object to focus camera (F)'}
+        >
+          🎯 FOCUS (F)
+        </button>
       </div>
 
       {/* 2. Floating Transform Controls & Selection Action Bar (Top Left) */}
@@ -241,6 +274,15 @@ export const AquariumViewport: React.FC<ViewportProps> = ({ onContextLost }) => 
         {/* Selection Actions (when object is selected) */}
         {selectedObject && (
           <div className="hud-button-group selection-actions">
+            <button
+              id="hud-btn-focus"
+              className="hud-tool-btn"
+              onClick={focusSelectedObject}
+              title="Frame camera on selected object (F)"
+            >
+              <Target size={13} />
+              <span>Frame</span>
+            </button>
             <button
               id="hud-btn-duplicate"
               className="hud-tool-btn"
@@ -294,7 +336,11 @@ export const AquariumViewport: React.FC<ViewportProps> = ({ onContextLost }) => 
           canvasElement.addEventListener('webglcontextlost', handleLoss, false);
         }}
       >
-        <CameraController preset={viewportSettings.cameraPreset} />
+        <CameraController
+          preset={viewportSettings.cameraPreset}
+          focusTrigger={focusTrigger}
+          selectedObject={selectedObject}
+        />
         <EnvironmentLighting preset={viewportSettings.lightingPreset} />
         <Scene />
         <TransformGizmo />

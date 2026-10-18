@@ -58,19 +58,27 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
     if (isCutaway) {
       return {
         color: '#1e293b',
-        roughness: 0.2,
-        metalness: 0.25,
+        roughness: 0.15,
+        metalness: 0.1,
         transparent: true,
         opacity: 0.55,
+        transmission: 0.85,
+        ior: 1.491,
+        thickness: 0.25,
       };
     }
-    // Transparent mode (Crystal clear acrylic)
+    // Transparent mode (Crystal clear optical acrylic)
     return {
-      color: material.color || '#38bdf8',
-      roughness: 0.08,
-      metalness: 0.1,
+      color: material.color || '#e0f2fe',
+      roughness: 0.05,
+      metalness: 0.02,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.42,
+      transmission: 0.92,
+      ior: 1.491,
+      thickness: 0.35,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
     };
   }, [isOpaque, isCutaway, material.color]);
 
@@ -135,7 +143,7 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
           receiveShadow
         >
           <boxGeometry args={[dimensions.x, dimensions.y - bottomThick, wallThick]} />
-          <meshStandardMaterial
+          <meshPhysicalMaterial
             {...wallMaterialProps}
             wireframe={isWireframeAll || material.wireframe}
           />
@@ -149,7 +157,7 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
         receiveShadow
       >
         <boxGeometry args={[dimensions.x, dimensions.y - bottomThick, wallThick]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           {...wallMaterialProps}
           wireframe={isWireframeAll || material.wireframe}
         />
@@ -164,7 +172,7 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
         <boxGeometry
           args={[wallThick, dimensions.y - bottomThick, dimensions.z - wallThick * 2]}
         />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           {...wallMaterialProps}
           wireframe={isWireframeAll || material.wireframe}
         />
@@ -179,7 +187,7 @@ export const FilterContainerMesh: React.FC<ComponentMeshProps> = ({
         <boxGeometry
           args={[wallThick, dimensions.y - bottomThick, dimensions.z - wallThick * 2]}
         />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           {...wallMaterialProps}
           wireframe={isWireframeAll || material.wireframe}
         />
@@ -365,12 +373,15 @@ export const InternalDividerMesh: React.FC<ComponentMeshProps> = ({
       {/* Main Divider Plate (raised above floor to provide underflow slot) */}
       <mesh position={[0, underflowSlotH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[plateThick, mainPlateH, dimensions.z]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           color={material.color || '#38bdf8'}
-          roughness={material.roughness || 0.15}
-          metalness={material.metalness || 0.1}
-          transparent={material.transparent}
-          opacity={material.opacity || 0.5}
+          roughness={0.06}
+          metalness={0.02}
+          transmission={0.88}
+          ior={1.491}
+          thickness={0.15}
+          transparent={true}
+          opacity={0.65}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
@@ -578,9 +589,9 @@ export const CeramicBioRingsMesh: React.FC<ComponentMeshProps> = ({
           <mesh castShadow receiveShadow>
             <cylinderGeometry args={[ringR, ringR, ringH, 14, 1, false]} />
             <meshStandardMaterial
-              color={material.color || '#e2e8f0'}
-              roughness={0.85}
-              metalness={0.05}
+              color={material.color || '#f1f5f9'}
+              roughness={0.92}
+              metalness={0.02}
               wireframe={isWireframeAll || material.wireframe}
             />
           </mesh>
@@ -993,12 +1004,15 @@ export const WaterOutletMesh: React.FC<ComponentMeshProps> = ({
       {/* Vertical Supply Tube */}
       <mesh position={[0, -dimensions.y / 2 + stemH / 2, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[radius, radius, stemH, 20]} />
-        <meshStandardMaterial
-          color={material.color || '#a0e9fd'}
-          roughness={material.roughness || 0.1}
-          metalness={material.metalness || 0.2}
-          transparent={material.transparent}
-          opacity={material.opacity}
+        <meshPhysicalMaterial
+          color={material.color || '#e0f2fe'}
+          roughness={0.05}
+          metalness={0.02}
+          transmission={0.92}
+          ior={1.491}
+          thickness={0.12}
+          transparent={true}
+          opacity={0.55}
           wireframe={isWireframeAll || material.wireframe}
         />
       </mesh>
@@ -1006,10 +1020,13 @@ export const WaterOutletMesh: React.FC<ComponentMeshProps> = ({
       {/* 90-Degree Curve into Outflow Flare */}
       <mesh position={[flareW * 0.25, stemH * 0.35, 0]} rotation={[0, 0, -Math.PI / 3]}>
         <cylinderGeometry args={[radius * 1.8, radius, flareW * 0.6, 20]} />
-        <meshStandardMaterial
-          color={material.color || '#a0e9fd'}
-          roughness={0.08}
-          metalness={0.15}
+        <meshPhysicalMaterial
+          color={material.color || '#e0f2fe'}
+          roughness={0.05}
+          metalness={0.02}
+          transmission={0.92}
+          ior={1.491}
+          thickness={0.12}
           transparent={true}
           opacity={0.55}
           wireframe={isWireframeAll || material.wireframe}
@@ -1019,10 +1036,13 @@ export const WaterOutletMesh: React.FC<ComponentMeshProps> = ({
       {/* Trumpet Lily Flared Bell Mouth */}
       <mesh position={[flareW * 0.5, stemH * 0.5, 0]} rotation={[0, 0, -Math.PI / 2]}>
         <cylinderGeometry args={[radius * 2.4, radius * 1.5, 0.18, 24, 1, true]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           color="#38bdf8"
           roughness={0.05}
-          metalness={0.3}
+          metalness={0.02}
+          transmission={0.9}
+          ior={1.491}
+          thickness={0.12}
           transparent={true}
           opacity={0.65}
           side={THREE.DoubleSide}

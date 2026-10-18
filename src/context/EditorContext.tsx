@@ -157,12 +157,19 @@ interface EditorContextType {
   addDividerToContainer: (containerId: string) => void;
   setMetricUnit: (unit: MetricUnit) => void;
   setContainerViewMode: (mode: ContainerViewMode) => void;
+  toggleExplodedView: () => void;
 
   // Viewport Settings
   viewportSettings: ViewportSettings;
   updateViewportSettings: (
     updater: (prev: ViewportSettings) => ViewportSettings
   ) => void;
+
+  // Modals & Camera Framing
+  isShortcutsModalOpen: boolean;
+  setIsShortcutsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  focusTrigger: number;
+  focusSelectedObject: () => void;
 
   // Layout & Sidebars
   layoutSettings: LayoutSettings;
@@ -230,6 +237,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     unitSystem: 'imperial',
     metricUnit: 'mm',
     containerViewMode: 'transparent',
+    explodedView: false,
   });
 
   // Layout & UI State
@@ -238,6 +246,17 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     rightSidebarOpen: true,
     activeLeftTab: 'library',
   });
+
+  // Keyboard Shortcuts Quick Reference Modal
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState<boolean>(false);
+
+  // Camera Framing & Focus Trigger
+  const [focusTrigger, setFocusTrigger] = useState<number>(0);
+  const focusSelectedObject = useCallback(() => {
+    if (selectedId) {
+      setFocusTrigger((prev) => prev + 1);
+    }
+  }, [selectedId]);
 
   // Helper to commit current state to undo history
   const pushHistory = useCallback(
@@ -446,15 +465,56 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             : parseFloat(dropPosition.z.toFixed(2)),
         };
       } else {
-        const dynamicItems = objects.filter((o) => o.componentType);
+        const container = objects.find(
+          (o) => o.componentType === 'filter-container' || o.id === 'obj-filter-container'
+        );
+        const cX = container?.position.x ?? 0;
+        const cY = container?.position.y ?? 0;
+        const cZ = container?.position.z ?? 0;
+        const cW = container?.dimensions.x ?? 2.4;
+        const cH = container?.dimensions.y ?? 1.0;
+
+        const dynamicItems = objects.filter((o) => o.componentType && o.id !== container?.id);
         const count = dynamicItems.length;
-        const col = count % 4;
-        const row = Math.floor(count / 4) % 3;
-        spawnPos = {
-          x: parseFloat((-0.9 + col * 0.6).toFixed(2)),
-          y: template.category === 'filter' ? 0.8 : parseFloat((-0.5 + row * 0.45).toFixed(2)),
-          z: parseFloat((0.2 + (col % 2) * 0.35).toFixed(2)),
-        };
+
+        if (template.category === 'media') {
+          // Place media stages neatly inside filter chambers
+          const chamberCount = 3;
+          const stageIndex = count % chamberCount;
+          const chamberSpan = cW * 0.6;
+          const startX = cX - chamberSpan / 2;
+          const stepX = chamberCount > 1 ? chamberSpan / (chamberCount - 1) : 0;
+          const floorY = cY - cH / 2 + (template.defaultDimensions.y / 2) + 0.08;
+          spawnPos = {
+            x: parseFloat((startX + stageIndex * stepX).toFixed(2)),
+            y: parseFloat(floorY.toFixed(2)),
+            z: parseFloat(cZ.toFixed(2)),
+          };
+        } else if (template.componentType === 'submersible-pump') {
+          // Place pump on the right chamber floor
+          const floorY = cY - cH / 2 + (template.defaultDimensions.y / 2) + 0.06;
+          spawnPos = {
+            x: parseFloat((cX + cW * 0.32).toFixed(2)),
+            y: parseFloat(floorY.toFixed(2)),
+            z: parseFloat(cZ.toFixed(2)),
+          };
+        } else if (template.category === 'plumbing') {
+          // Place plumbing above/near top rim
+          const col = count % 3;
+          spawnPos = {
+            x: parseFloat((cX - 0.4 + col * 0.4).toFixed(2)),
+            y: parseFloat((cY + cH / 2 + 0.2).toFixed(2)),
+            z: parseFloat((cZ + (col % 2 === 0 ? 0.15 : -0.15)).toFixed(2)),
+          };
+        } else {
+          const col = count % 4;
+          const row = Math.floor(count / 4) % 3;
+          spawnPos = {
+            x: parseFloat((-0.9 + col * 0.6).toFixed(2)),
+            y: template.category === 'filter' ? 0.8 : parseFloat((-0.5 + row * 0.45).toFixed(2)),
+            z: parseFloat((0.2 + (col % 2) * 0.35).toFixed(2)),
+          };
+        }
       }
 
       const newObject: EditorObject = {
@@ -675,6 +735,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       unitSystem: 'imperial',
       metricUnit: 'mm',
       containerViewMode: 'transparent',
+      explodedView: false,
     });
   }, []);
 
@@ -693,6 +754,10 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const setContainerViewMode = useCallback((mode: ContainerViewMode) => {
     setViewportSettings((prev) => ({ ...prev, containerViewMode: mode }));
+  }, []);
+
+  const toggleExplodedView = useCallback(() => {
+    setViewportSettings((prev) => ({ ...prev, explodedView: !prev.explodedView }));
   }, []);
 
   // Custom filter geometry resize
@@ -1106,6 +1171,82 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return;
       }
 
+      // Keyboard Shortcuts Quick Reference Modal (?)
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setIsShortcutsModalOpen((prev) => !prev);
+        return;
+      }
+
+      // Camera Frame / Focus on Selected Object (F)
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        focusSelectedObject();
+        return;
+      }
+
+      // View Mode Hotkeys (Alt + 1/2/3/4)
+      if (e.altKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          setContainerViewMode('transparent');
+          return;
+        } else if (e.key === '2') {
+          e.preventDefault();
+          setContainerViewMode('opaque');
+          return;
+        } else if (e.key === '3') {
+          e.preventDefault();
+          setContainerViewMode('cutaway');
+          return;
+        } else if (e.key === '4') {
+          e.preventDefault();
+          toggleExplodedView();
+          return;
+        }
+      }
+
+      // Toggle Grid (G) and Measurements (M)
+      if (e.key.toLowerCase() === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        updateViewportSettings((prev) => ({ ...prev, showGrid: !prev.showGrid }));
+        return;
+      }
+      if (e.key.toLowerCase() === 'm' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        updateViewportSettings((prev) => ({ ...prev, showMeasurements: !prev.showMeasurements }));
+        return;
+      }
+
+      // Sidebar Toggle Hotkeys (Ctrl + [ / Ctrl + ])
+      if ((e.ctrlKey || e.metaKey) && e.key === '[') {
+        e.preventDefault();
+        toggleLeftSidebar();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ']') {
+        e.preventDefault();
+        toggleRightSidebar();
+        return;
+      }
+
+      // Simulation Speed Hotkeys (1, 2, 3, 4)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === '1') {
+          setSimulationSpeed(0.5);
+          return;
+        } else if (e.key === '2') {
+          setSimulationSpeed(1.0);
+          return;
+        } else if (e.key === '3') {
+          setSimulationSpeed(2.0);
+          return;
+        } else if (e.key === '4') {
+          setSimulationSpeed(5.0);
+          return;
+        }
+      }
+
       // Undo / Redo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -1163,6 +1304,13 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     selectedId,
     activeConnectingPort,
     cancelConnecting,
+    focusSelectedObject,
+    toggleExplodedView,
+    setContainerViewMode,
+    setSimulationSpeed,
+    toggleLeftSidebar,
+    toggleRightSidebar,
+    updateViewportSettings,
   ]);
 
   return (
@@ -1221,8 +1369,13 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         addDividerToContainer,
         setMetricUnit,
         setContainerViewMode,
+        toggleExplodedView,
         viewportSettings,
         updateViewportSettings,
+        isShortcutsModalOpen,
+        setIsShortcutsModalOpen,
+        focusTrigger,
+        focusSelectedObject,
         layoutSettings,
         toggleLeftSidebar,
         toggleRightSidebar,

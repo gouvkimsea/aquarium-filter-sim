@@ -420,8 +420,8 @@ export const Scene: React.FC = () => {
           <mesh
             position={[
               mediaStage1.position.x,
-              mediaStage1.position.y,
-              mediaStage1.position.z,
+              mediaStage1.position.y + (viewportSettings.explodedView ? 1.8 : 0),
+              mediaStage1.position.z + (viewportSettings.explodedView ? 0.3 : 0),
             ]}
             castShadow
             renderOrder={4}
@@ -436,8 +436,8 @@ export const Scene: React.FC = () => {
             />
             <meshStandardMaterial
               color={mediaStage1.material.color}
-              roughness={mediaStage1.material.roughness}
-              metalness={mediaStage1.material.metalness}
+              roughness={0.98}
+              metalness={0.0}
               wireframe={isWireframeAll || mediaStage1.material.wireframe}
             />
           </mesh>
@@ -448,8 +448,8 @@ export const Scene: React.FC = () => {
           <mesh
             position={[
               mediaStage2.position.x,
-              mediaStage2.position.y,
-              mediaStage2.position.z,
+              mediaStage2.position.y + (viewportSettings.explodedView ? 1.8 : 0),
+              mediaStage2.position.z + (viewportSettings.explodedView ? 0.3 : 0),
             ]}
             castShadow
             renderOrder={4}
@@ -463,9 +463,9 @@ export const Scene: React.FC = () => {
               ]}
             />
             <meshStandardMaterial
-              color={mediaStage2.material.color}
-              roughness={mediaStage2.material.roughness}
-              metalness={mediaStage2.material.metalness}
+              color="#f1f5f9"
+              roughness={0.92}
+              metalness={0.02}
               wireframe={isWireframeAll || mediaStage2.material.wireframe}
             />
           </mesh>
@@ -476,8 +476,8 @@ export const Scene: React.FC = () => {
           <mesh
             position={[
               mediaStage3.position.x,
-              mediaStage3.position.y,
-              mediaStage3.position.z,
+              mediaStage3.position.y + (viewportSettings.explodedView ? 1.8 : 0),
+              mediaStage3.position.z + (viewportSettings.explodedView ? 0.3 : 0),
             ]}
             castShadow
             renderOrder={4}
@@ -491,9 +491,9 @@ export const Scene: React.FC = () => {
               ]}
             />
             <meshStandardMaterial
-              color={mediaStage3.material.color}
-              roughness={mediaStage3.material.roughness}
-              metalness={mediaStage3.material.metalness}
+              color="#18181b"
+              roughness={0.7}
+              metalness={0.15}
               wireframe={isWireframeAll || mediaStage3.material.wireframe}
             />
           </mesh>
@@ -695,23 +695,65 @@ export const Scene: React.FC = () => {
       )}
 
       {/* Dynamic User Filter & Hardscape Objects */}
-      {customObjects.map((obj) => (
-        <group
-          key={obj.id}
-          position={[obj.position.x, obj.position.y, obj.position.z]}
-          rotation={[
-            ((obj.rotation?.x || 0) * Math.PI) / 180,
-            ((obj.rotation?.y || 0) * Math.PI) / 180,
-            ((obj.rotation?.z || 0) * Math.PI) / 180,
-          ]}
-        >
-          <ReusableFilterMesh
-            object={obj}
-            isWireframeAll={isWireframeAll}
-            interactiveProps={makeInteractive(obj.id)}
-          />
-        </group>
-      ))}
+      {customObjects.map((obj) => {
+        let explodedOffsetY = 0;
+        let explodedOffsetZ = 0;
+        if (viewportSettings.explodedView) {
+          if (obj.componentType === 'internal-divider') {
+            explodedOffsetY = 1.1;
+          } else if (
+            [
+              'coarse-sponge',
+              'fine-sponge',
+              'filter-floss-pad',
+              'ceramic-bio-rings',
+              'bio-media-balls',
+            ].includes(obj.componentType || '')
+          ) {
+            explodedOffsetY = 1.8;
+            explodedOffsetZ = 0.35;
+          } else if (
+            ['straight-pipe', 'elbow-pipe', 'flexible-hose', 'water-inlet', 'water-outlet'].includes(
+              obj.componentType || ''
+            )
+          ) {
+            explodedOffsetY = 0.9;
+            explodedOffsetZ = -0.35;
+          } else if (obj.componentType === 'submersible-pump') {
+            explodedOffsetY = 0.6;
+            explodedOffsetZ = 0.45;
+          }
+        }
+
+        const posX = obj.position.x;
+        const posY = obj.position.y + explodedOffsetY;
+        const posZ = obj.position.z + explodedOffsetZ;
+
+        return (
+          <group
+            key={obj.id}
+            position={[posX, posY, posZ]}
+            rotation={[
+              ((obj.rotation?.x || 0) * Math.PI) / 180,
+              ((obj.rotation?.y || 0) * Math.PI) / 180,
+              ((obj.rotation?.z || 0) * Math.PI) / 180,
+            ]}
+          >
+            <ReusableFilterMesh
+              object={obj}
+              isWireframeAll={isWireframeAll}
+              interactiveProps={makeInteractive(obj.id)}
+            />
+            {/* Exploded assembly guide stem line */}
+            {viewportSettings.explodedView && explodedOffsetY > 0 && (
+              <mesh position={[0, -explodedOffsetY / 2, -explodedOffsetZ]}>
+                <cylinderGeometry args={[0.004, 0.004, explodedOffsetY, 6]} />
+                <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
       {/* 3D Connection Ports & Dynamic Plumbing Visualizer */}
       <PortVisualizer />
       {/* 3D Physics-Driven Water Flow Trajectories & Telemetry HUD */}
