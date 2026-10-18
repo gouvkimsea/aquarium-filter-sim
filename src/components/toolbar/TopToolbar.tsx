@@ -6,7 +6,6 @@ import {
   Pause,
   SkipForward,
   RotateCcw,
-  Download,
   Layers,
   Box,
   Camera,
@@ -27,9 +26,18 @@ import {
   Copy,
   Trash2,
   Scissors,
+  Save,
+  FilePlus,
+  FolderOpen,
+  FileDown,
+  Tag,
+  Check,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import type { ViewMode, CameraPreset, LightingPreset } from '../../types/editor';
+import { ProjectManagerModal } from '../modals/ProjectManagerModal';
+import { SaveAsDialog } from '../modals/SaveAsDialog';
+import { UnsavedChangesDialog } from '../modals/UnsavedChangesDialog';
 
 export const TopToolbar: React.FC = () => {
   const {
@@ -48,7 +56,6 @@ export const TopToolbar: React.FC = () => {
     toggleLeftSidebar,
     toggleRightSidebar,
     resetScene,
-    exportProjectJSON,
     transformMode,
     setTransformMode,
     snapSettings,
@@ -56,9 +63,17 @@ export const TopToolbar: React.FC = () => {
     selectedObject,
     duplicateObject,
     deleteObject,
+    currentProject,
+    isDirty,
+    newProject,
+    saveProject,
+    exportProjectFile,
   } = useEditor();
 
   const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showSaveAsModal, setShowSaveAsModal] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
 
   const setViewMode = (viewMode: ViewMode) => {
     updateViewportSettings((prev) => ({ ...prev, viewMode }));
@@ -128,16 +143,82 @@ export const TopToolbar: React.FC = () => {
             id="btn-file-menu"
             className="toolbar-btn"
             onClick={() => setShowFileMenu(!showFileMenu)}
-            title="Project File Menu"
+            title="Project File Actions"
           >
             <span>Project</span>
+            {isDirty && <span className="dirty-indicator-dot" title="Unsaved changes">•</span>}
           </button>
 
           {showFileMenu && (
             <div className="toolbar-dropdown-menu" onMouseLeave={() => setShowFileMenu(false)}>
               <button
-                id="menu-reset-scene"
+                id="menu-new-project"
                 className="dropdown-item"
+                onClick={() => {
+                  newProject();
+                  setShowFileMenu(false);
+                }}
+              >
+                <FilePlus size={14} className="text-cyan-400" />
+                <span>New Project</span>
+              </button>
+
+              <button
+                id="menu-save-project"
+                className="dropdown-item"
+                onClick={async () => {
+                  await saveProject();
+                  setSaveFeedback('Project Saved!');
+                  setTimeout(() => setSaveFeedback(null), 2500);
+                  setShowFileMenu(false);
+                }}
+              >
+                <Save size={14} className="text-emerald-400" />
+                <span>Save Project</span>
+                <span className="shortcut-hint">Ctrl+S</span>
+              </button>
+
+              <button
+                id="menu-save-as-project"
+                className="dropdown-item"
+                onClick={() => {
+                  setShowSaveAsModal(true);
+                  setShowFileMenu(false);
+                }}
+              >
+                <Tag size={14} className="text-sky-400" />
+                <span>Save As...</span>
+              </button>
+
+              <button
+                id="menu-open-project"
+                className="dropdown-item"
+                onClick={() => {
+                  setShowProjectModal(true);
+                  setShowFileMenu(false);
+                }}
+              >
+                <FolderOpen size={14} className="text-amber-400" />
+                <span>Open Project Library...</span>
+              </button>
+
+              <div className="dropdown-divider" />
+
+              <button
+                id="menu-export-aquasim"
+                className="dropdown-item"
+                onClick={() => {
+                  exportProjectFile();
+                  setShowFileMenu(false);
+                }}
+              >
+                <FileDown size={14} />
+                <span>Export Project File (.aquasim)</span>
+              </button>
+
+              <button
+                id="menu-reset-scene"
+                className="dropdown-item hover-danger"
                 onClick={() => {
                   resetScene();
                   setShowFileMenu(false);
@@ -146,18 +227,40 @@ export const TopToolbar: React.FC = () => {
                 <RotateCcw size={14} />
                 <span>Reset to Default Tank</span>
               </button>
-              <button
-                id="menu-export-json"
-                className="dropdown-item"
-                onClick={() => {
-                  exportProjectJSON();
-                  setShowFileMenu(false);
-                }}
-              >
-                <Download size={14} />
-                <span>Export Scene Config (.json)</span>
-              </button>
             </div>
+          )}
+        </div>
+
+        {/* Quick Save Button */}
+        <button
+          id="btn-quick-save"
+          className="toolbar-btn icon-only"
+          onClick={async () => {
+            await saveProject();
+            setSaveFeedback('Saved!');
+            setTimeout(() => setSaveFeedback(null), 2000);
+          }}
+          title={isDirty ? 'Save Changes (Ctrl+S)' : 'All Changes Saved to Browser Storage (Ctrl+S)'}
+          aria-label="Save"
+        >
+          {saveFeedback ? (
+            <Check size={15} className="text-emerald-400" />
+          ) : (
+            <Save size={15} className={isDirty ? 'text-amber-400' : 'text-emerald-400'} />
+          )}
+        </button>
+
+        {/* Current Active Project Title Badge */}
+        <div
+          className="cad-current-project-pill"
+          onClick={() => setShowSaveAsModal(true)}
+          title="Current active project. Click to rename or save as copy."
+        >
+          <span className="proj-name">{currentProject.name}</span>
+          {isDirty ? (
+            <span className="dirty-badge" title="Unsaved changes">*</span>
+          ) : (
+            <span className="saved-badge" title="Saved to Browser Storage">✓</span>
           )}
         </div>
 
@@ -450,6 +553,17 @@ export const TopToolbar: React.FC = () => {
           {layoutSettings.rightSidebarOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
         </button>
       </div>
+
+      {/* Project Persistence Modals & Dialogs */}
+      <ProjectManagerModal
+        isOpen={showProjectModal}
+        onClose={() => setShowProjectModal(false)}
+      />
+      <SaveAsDialog
+        isOpen={showSaveAsModal}
+        onClose={() => setShowSaveAsModal(false)}
+      />
+      <UnsavedChangesDialog />
     </header>
   );
 };

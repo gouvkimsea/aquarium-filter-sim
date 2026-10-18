@@ -5,6 +5,7 @@ import {
   Layers,
   Ruler,
   Globe,
+  GitBranch,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import {
@@ -22,6 +23,7 @@ export const CADStatusBar: React.FC = () => {
     objects,
     transformMode,
     snapSettings,
+    graphAnalysis,
   } = useEditor();
 
   const cycleUnitSystem = () => {
@@ -119,6 +121,16 @@ export const CADStatusBar: React.FC = () => {
             <span>{filterBasinText}</span>
           </div>
         )}
+        <div
+          className={`measurements-pill plumbing-pill ${graphAnalysis.issues.length > 0 ? 'warning' : 'valid'}`}
+          id="status-plumbing-network"
+          title={`${graphAnalysis.connectedEdgeCount} active connections, ${graphAnalysis.openPortCount} open ports, ${graphAnalysis.chains.length} flow path(s)`}
+        >
+          <GitBranch size={12} className={graphAnalysis.issues.length > 0 ? 'text-amber-400' : 'text-emerald-400'} />
+          <span>
+            PLUMBING: {graphAnalysis.connectedEdgeCount} Links • {graphAnalysis.openPortCount} Open
+          </span>
+        </div>
       </div>
 
       {/* 3. Right: Simulation State, Unit Selector & Camera Reset */}

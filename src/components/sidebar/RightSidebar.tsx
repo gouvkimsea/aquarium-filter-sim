@@ -21,6 +21,11 @@ import {
   Scissors,
   ArrowRight,
   Sparkles,
+  Unlink,
+  Radio,
+  CheckCircle2,
+  AlertCircle,
+  GitBranch,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import {
@@ -31,6 +36,12 @@ import {
   validateContainerDimensions,
   CONTAINER_LIMITS,
 } from '../../utils/filterGeometry';
+import {
+  getComponentPorts,
+  findEdgeForPort,
+  getConnectedPartner,
+  validateConnection,
+} from '../../utils/connectionGraph';
 
 export const RightSidebar: React.FC = () => {
   const {
@@ -54,6 +65,13 @@ export const RightSidebar: React.FC = () => {
     setMetricUnit,
     setContainerViewMode,
     viewportSettings,
+    connections,
+    activeConnectingPort,
+    connectPorts,
+    disconnectPorts,
+    startConnecting,
+    cancelConnecting,
+    graphAnalysis,
   } = useEditor();
 
   if (!layoutSettings.rightSidebarOpen) {
@@ -92,6 +110,16 @@ export const RightSidebar: React.FC = () => {
     }
     return validateContainerDimensions(selectedObject.dimensions);
   }, [isContainer, selectedObject]);
+
+  // Ports for the selected component
+  const selectedPorts = useMemo(() => {
+    return selectedObject ? getComponentPorts(selectedObject) : [];
+  }, [selectedObject]);
+
+  const connectedPortsCount = useMemo(() => {
+    if (!selectedObject || selectedPorts.length === 0) return 0;
+    return selectedPorts.filter((p) => findEdgeForPort(connections, selectedObject.id, p.id)).length;
+  }, [selectedObject, selectedPorts, connections]);
 
   // Predefined color swatches for quick CAD aesthetic styling
   const COLOR_SWATCHES = [
@@ -600,6 +628,200 @@ export const RightSidebar: React.FC = () => {
               )}
             </div>
 
+            {/* 3. Plumbing Ports & Connection Graph */}
+            {selectedPorts.length > 0 && (
+              <div className="inspector-card" id="inspector-plumbing-card">
+                <div className="card-section-title">
+                  <div className="title-left">
+                    <GitBranch size={13} className="text-emerald-400" />
+                    <span>Plumbing Ports & Graph</span>
+                  </div>
+                  <span className="card-badge">
+                    {connectedPortsCount} / {selectedPorts.length} Connected
+                  </span>
+                </div>
+
+                {/* Ports List */}
+                <div className="ports-inspector-list">
+                  {selectedPorts.map((port) => {
+                    const edge = findEdgeForPort(connections, selectedObject.id, port.id);
+                    const isConnected = !!edge;
+                    const partner = edge
+                      ? getConnectedPartner(edge, selectedObject.id, port.id)
+                      : null;
+                    const partnerObj = partner
+                      ? objects.find((o) => o.id === partner.componentId)
+                      : null;
+                    const partnerPorts = partnerObj ? getComponentPorts(partnerObj) : [];
+                    const partnerPort = partnerPorts.find((p) => p.id === partner?.portId);
+
+                    // Find available open compatible ports in the scene for quick-connect
+                    const compatibleOpenTargets = objects.flatMap((otherObj) => {
+                      if (otherObj.id === selectedObject.id || !otherObj.visible) return [];
+                      const otherPorts = getComponentPorts(otherObj);
+                      return otherPorts
+                        .filter((p) => !findEdgeForPort(connections, otherObj.id, p.id))
+                        .filter(
+                          (p) =>
+                            validateConnection(
+                              selectedObject,
+                              port,
+                              otherObj,
+                              p,
+                              connections
+                            ).valid
+                        )
+                        .map((p) => ({
+                          targetObj: otherObj,
+                          targetPort: p,
+                        }));
+                    });
+
+                    const isConnectingThis =
+                      activeConnectingPort?.componentId === selectedObject.id &&
+                      activeConnectingPort?.portId === port.id;
+
+                    return (
+                      <div
+                        key={port.id}
+                        className={`port-item-card ${isConnected ? 'connected' : 'open'}`}
+                      >
+                        <div className="port-header-line">
+                          <span className={`port-direction-pill dir-${port.direction}`}>
+                            {port.direction.toUpperCase()}
+                          </span>
+                          <strong className="port-title">{port.name}</strong>
+                          <span className="port-type-tag">{port.type}</span>
+                        </div>
+
+                        {isConnected ? (
+                          <div className="port-connected-box">
+                            <div className="connected-details">
+                              <CheckCircle2 size={12} className="text-emerald-400" />
+                              <span>
+                                Linked: <strong>{partnerObj?.name || partner?.componentId}</strong>{' '}
+                                ({partnerPort?.name || partner?.portId})
+                              </span>
+                            </div>
+                            <button
+                              id={`btn-disconnect-${port.id}`}
+                              className="cad-disconnect-btn"
+                              onClick={() => disconnectPorts(selectedObject.id, port.id)}
+                              title="Disconnect this pipe endpoint"
+                            >
+                              <Unlink size={11} />
+                              <span>Disconnect</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="port-open-box">
+                            <div className="open-notice">
+                              <AlertCircle size={12} className="text-amber-400" />
+                              <span>Open Port (Unconnected)</span>
+                            </div>
+
+                            {/* Quick Connect Dropdown & Actions */}
+                            <div className="quick-connect-row">
+                              {compatibleOpenTargets.length > 0 ? (
+                                <div className="quick-connect-controls">
+                                  <select
+                                    id={`select-connect-target-${port.id}`}
+                                    className="cad-port-select"
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      if (!e.target.value) return;
+                                      const [targetCompId, targetPortId] = e.target.value.split('::');
+                                      const res = connectPorts(
+                                        selectedObject.id,
+                                        port.id,
+                                        targetCompId,
+                                        targetPortId
+                                      );
+                                      if (!res.success && res.message) {
+                                        alert(res.message);
+                                      }
+                                    }}
+                                  >
+                                    <option value="">-- Quick Snap to Open Port --</option>
+                                    {compatibleOpenTargets.map(({ targetObj, targetPort: tPort }) => (
+                                      <option
+                                        key={`${targetObj.id}::${tPort.id}`}
+                                        value={`${targetObj.id}::${tPort.id}`}
+                                      >
+                                        {targetObj.name} → {tPort.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                <div className="no-compatible-ports-hint">
+                                  No compatible open ports found in scene. Add another pipe or pump from library.
+                                </div>
+                              )}
+
+                              <button
+                                id={`btn-start-connect-${port.id}`}
+                                className={`cad-start-connect-btn ${isConnectingThis ? 'active' : ''}`}
+                                onClick={() => {
+                                  if (isConnectingThis) cancelConnecting();
+                                  else startConnecting(selectedObject.id, port.id);
+                                }}
+                              >
+                                <Radio size={12} />
+                                <span>{isConnectingThis ? 'Cancel Connection' : '3D Click-to-Connect'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Local & System Plumbing Diagnostics */}
+                <div className="plumbing-diagnostics-section">
+                  <div className="diag-header">
+                    <Activity size={12} className="text-cyan-400" />
+                    <span>Graph Model Diagnostics</span>
+                  </div>
+
+                  <div className="diag-metrics-grid">
+                    <div className="diag-metric">
+                      <span className="lbl">Total Edges</span>
+                      <strong className="val">{graphAnalysis.connectedEdgeCount}</strong>
+                    </div>
+                    <div className="diag-metric">
+                      <span className="lbl">Open Ports</span>
+                      <strong className={`val ${graphAnalysis.openPortCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {graphAnalysis.openPortCount}
+                      </strong>
+                    </div>
+                    <div className="diag-metric">
+                      <span className="lbl">Flow Paths</span>
+                      <strong className="val text-cyan-400">{graphAnalysis.chains.length}</strong>
+                    </div>
+                  </div>
+
+                  {graphAnalysis.issues.filter((i) => i.componentId === selectedObject.id).length > 0 && (
+                    <div className="component-issues-list">
+                      {graphAnalysis.issues
+                        .filter((i) => i.componentId === selectedObject.id)
+                        .map((issue, idx) => (
+                          <div key={idx} className={`diag-issue-item ${issue.severity}`}>
+                            <AlertTriangle size={12} />
+                            <span>{issue.message}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  <div className="graph-model-disclaimer">
+                    <span>* Graph-based topological connection model validated. Hydrodynamic flow velocities will calculate in next phase.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 4. Material & Visual Properties */}
             <div className="inspector-section">
               <div className="section-label">
@@ -1100,6 +1322,12 @@ export const RightSidebar: React.FC = () => {
               <div className="summary-row">
                 <span>Active Cycle Time:</span>
                 <strong>+{Math.floor(simulation.simulatedMinutes)} mins</strong>
+              </div>
+              <div className="summary-row">
+                <span>Plumbing Connections:</span>
+                <strong className={graphAnalysis.isValid ? 'text-emerald-400' : 'text-amber-400'}>
+                  {graphAnalysis.connectedEdgeCount} Edges ({graphAnalysis.openPortCount} Open)
+                </strong>
               </div>
             </div>
           </div>

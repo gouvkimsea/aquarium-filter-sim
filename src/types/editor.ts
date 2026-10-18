@@ -139,3 +139,58 @@ export interface LayoutSettings {
   rightSidebarOpen: boolean;
   activeLeftTab: 'library' | 'outliner';
 }
+
+// =========================================================================
+// CONNECTION GRAPH & PLUMBING PORTS
+// =========================================================================
+
+export type PortDirection = 'in' | 'out' | 'bidirectional';
+export type PortType =
+  | 'pipe'
+  | 'elbow'
+  | 'hose'
+  | 'pump-discharge'
+  | 'pump-suction'
+  | 'inlet'
+  | 'outlet'
+  | 'chamber';
+
+export interface ConnectionPort {
+  id: string; // e.g. 'suction', 'discharge', 'port-a', 'port-b', 'socket-1', 'socket-2'
+  name: string; // Human-friendly display label
+  type: PortType;
+  direction: PortDirection; // 'in' receives flow, 'out' sends flow, 'bidirectional'
+  localOffset: Vector3D; // Local offset relative to object center
+  normal: Vector3D; // Unit normal vector pointing outward
+  diameterMm?: number;
+}
+
+export interface ConnectionEdge {
+  id: string;
+  fromComponentId: string;
+  fromPortId: string;
+  toComponentId: string;
+  toPortId: string;
+  createdAt: number;
+}
+
+export interface ConnectionGraph {
+  edges: ConnectionEdge[];
+}
+
+export interface ConnectionIssue {
+  type: 'disconnected-port' | 'invalid-type' | 'direction-mismatch' | 'orphan-edge';
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  componentId: string;
+  portId?: string;
+}
+
+export interface GraphAnalysis {
+  isValid: boolean;
+  connectedEdgeCount: number;
+  openPortCount: number;
+  connectedPortCount: number;
+  issues: ConnectionIssue[];
+  chains: string[][];
+}

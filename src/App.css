@@ -2127,17 +2127,866 @@
   color: #38bdf8;
 }
 
-/* Status Bar Basin Pill */
-.filter-basin-pill {
-  border-color: rgba(56, 189, 248, 0.3) !important;
+/* ========================================================================== */
+/* 3D CONNECTION PORTS & PLUMBING VISUALIZER                                 */
+/* ========================================================================== */
+
+.port-3d-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 8px;
+  background: rgba(9, 14, 24, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
 }
 
-.basin-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #38bdf8;
-  box-shadow: 0 0 6px #38bdf8;
+.port-3d-hud:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8);
 }
+
+.port-hud-open {
+  border-color: rgba(249, 115, 22, 0.6);
+}
+
+.port-hud-connected {
+  border-color: rgba(16, 185, 129, 0.7);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.port-hud-active {
+  border-color: #fbbf24;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.45);
+  animation: portPulse 1.2s infinite alternate;
+}
+
+.port-hud-target {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(0, 245, 212, 0.45);
+  animation: portPulse 1s infinite alternate;
+}
+
+@keyframes portPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.06); }
+}
+
+.port-hud-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.port-dir-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.port-name-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.port-hud-sub {
+  font-size: 0.58rem;
+  font-family: var(--font-mono);
+}
+
+.port-state-connected {
+  color: #10b981;
+}
+
+.port-state-open {
+  color: #f97316;
+}
+
+.port-state-pulsing {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.port-state-connectable {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+/* ========================================================================== */
+/* PLUMBING INSPECTOR CARD (Right Sidebar)                                   */
+/* ========================================================================== */
+
+#inspector-plumbing-card {
+  border-left: 3px solid #10b981;
+}
+
+.ports-inspector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.port-item-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.port-item-card.connected {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.port-item-card.open {
+  border-color: rgba(249, 115, 22, 0.3);
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.port-header-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.port-direction-pill {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.port-direction-pill.dir-in {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+}
+
+.port-direction-pill.dir-out {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+}
+
+.port-direction-pill.dir-bidirectional {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.port-title {
+  font-size: 0.75rem;
+  color: #ffffff;
+  flex: 1;
+}
+
+.port-type-tag {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: #64748b;
+}
+
+.port-connected-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.connected-details {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+
+.cad-disconnect-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 4px;
+  color: #f87171;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cad-disconnect-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+}
+
+.port-open-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.open-notice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  color: #f59e0b;
+}
+
+.quick-connect-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.quick-connect-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.cad-port-select {
+  flex: 1;
+  background: rgba(9, 14, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.cad-port-select:focus {
+  border-color: var(--accent-cyan);
+}
+
+.no-compatible-ports-hint {
+  font-size: 0.65rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.cad-start-connect-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 8px;
+  background: rgba(0, 245, 212, 0.12);
+  border: 1px solid rgba(0, 245, 212, 0.35);
+  border-radius: 4px;
+  color: var(--accent-cyan);
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cad-start-connect-btn:hover {
+  background: rgba(0, 245, 212, 0.25);
+  color: #ffffff;
+}
+
+.cad-start-connect-btn.active {
+  background: #fbbf24;
+  color: #000000;
+  border-color: #fbbf24;
+}
+
+/* Plumbing Diagnostics Section */
+.plumbing-diagnostics-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diag-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.diag-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.diag-metric {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 5px 6px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.diag-metric .lbl {
+  font-size: 0.6rem;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.diag-metric .val {
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  color: #f1f5f9;
+}
+
+.component-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.diag-issue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+}
+
+.diag-issue-item.warning {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.diag-issue-item.error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.graph-model-disclaimer {
+  font-size: 0.62rem;
+  color: #64748b;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+
+/* ========================================================================== */
+/* STATUS BAR PLUMBING PILL                                                   */
+/* ========================================================================== */
+
+.plumbing-pill {
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.plumbing-pill.warning {
+  border-color: rgba(245, 158, 11, 0.5) !important;
+}
+
+/* ========================================================================== */
+/* TOP TOOLBAR PROJECT PERSISTENCE PILL & MENU                                */
+/* ========================================================================== */
+
+.cad-current-project-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  max-width: 220px;
+}
+
+.cad-current-project-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(0, 245, 212, 0.4);
+}
+
+.cad-current-project-pill .proj-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cad-current-project-pill .dirty-badge {
+  color: #f59e0b;
+  font-weight: 900;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.cad-current-project-pill .saved-badge {
+  color: #10b981;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.dirty-indicator-dot {
+  color: #f59e0b;
+  font-size: 1.1rem;
+  line-height: 0;
+  margin-left: 2px;
+}
+
+.shortcut-hint {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: #64748b;
+  font-family: var(--font-mono);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 0;
+}
+
+/* ========================================================================== */
+/* MODALS & DIALOGS (Project Manager, Save As, Unsaved Changes)                */
+/* ========================================================================== */
+
+.cad-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 13, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.cad-modal-content {
+  background: #0d1524;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(0, 245, 212, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.project-manager-modal {
+  width: 680px;
+  max-width: 95vw;
+  max-height: 85vh;
+}
+
+.save-as-dialog,
+.unsaved-warning-dialog {
+  width: 480px;
+  max-width: 95vw;
+}
+
+.cad-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cad-modal-header.danger-header {
+  border-bottom-color: rgba(245, 158, 11, 0.3);
+}
+
+.header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-title-box h3 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.cad-storage-badge {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 6px;
+  background: rgba(0, 245, 212, 0.15);
+  color: var(--accent-cyan);
+  border-radius: 3px;
+  border: 1px solid rgba(0, 245, 212, 0.3);
+}
+
+.cad-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.cad-modal-close-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cad-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cad-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footer-hint {
+  margin-right: auto;
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.footer-hint code {
+  color: var(--accent-cyan);
+}
+
+/* Feedback Banner */
+.cad-feedback-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 0.75rem;
+}
+
+.cad-feedback-banner.success {
+  background: rgba(16, 185, 129, 0.15);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.cad-feedback-banner.error {
+  background: rgba(239, 68, 68, 0.15);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+/* Project Manager Grid */
+.project-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-list-header .list-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.projects-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.project-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.project-card:hover {
+  border-color: rgba(0, 245, 212, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.project-card.active-project {
+  border-color: rgba(0, 245, 212, 0.5);
+  background: rgba(0, 245, 212, 0.04);
+}
+
+.card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-title-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-title-area .proj-name {
+  font-size: 0.85rem;
+  color: #ffffff;
+}
+
+.active-chip {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  padding: 1px 5px;
+  background: rgba(0, 245, 212, 0.2);
+  color: var(--accent-cyan);
+  border-radius: 3px;
+}
+
+.card-quick-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-action-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.icon-action-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.icon-action-btn.hover-danger:hover {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.project-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: #64748b;
+}
+
+.card-bottom-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.open-btn {
+  padding: 5px 12px !important;
+  font-size: 0.72rem !important;
+}
+
+/* Empty Project Box */
+.cad-empty-projects-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  gap: 8px;
+}
+
+.cad-empty-projects-box h4 {
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.cad-empty-projects-box p {
+  font-size: 0.75rem;
+  color: #64748b;
+  max-width: 380px;
+  margin: 0;
+}
+
+/* Standard Buttons & Inputs */
+.cad-primary-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(0, 245, 212, 0.18);
+  border: 1px solid rgba(0, 245, 212, 0.5);
+  border-radius: 4px;
+  color: var(--accent-cyan);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cad-primary-btn:hover {
+  background: rgba(0, 245, 212, 0.3);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(0, 245, 212, 0.25);
+}
+
+.cad-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cad-secondary-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cad-secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.cad-danger-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 4px;
+  color: #f87171;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cad-danger-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+}
+
+.form-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field-group label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.cad-text-input {
+  background: rgba(9, 14, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.cad-text-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.2);
+}
+
+.save-dialog-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.warning-lead-text {
+  font-size: 0.85rem;
+  color: #ffffff;
+  margin: 0;
+}
+
+.warning-sub-text {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin: 0;
+}
+
 
 

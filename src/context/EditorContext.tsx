@@ -18,14 +18,89 @@ import type {
   Vector3D,
   MetricUnit,
   ContainerViewMode,
+  ConnectionEdge,
+  GraphAnalysis,
 } from '../types/editor';
+import type {
+  ProjectData,
+  ProjectMetadata,
+  ProjectStorageItem,
+} from '../types/project';
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_PROJECT_APP_VERSION,
+} from '../types/project';
 import { INITIAL_SCENE_OBJECTS } from '../data/componentLibrary';
 import {
   resizeContainerAndDividers,
   getNewDividerPosition,
 } from '../utils/filterGeometry';
+import {
+  getComponentPorts,
+  validateConnection,
+  createConnectionEdge,
+  findEdgeForPort,
+  removeEdgesForComponent,
+  updateConnectedPlumbing,
+  analyzeConnectionGraph,
+} from '../utils/connectionGraph';
+import {
+  saveProjectToStorage,
+  getProjectFromStorage,
+  listProjectsFromStorage,
+  deleteProjectFromStorage,
+  saveDraftToStorage,
+  getDraftFromStorage,
+  clearDraftFromStorage,
+  setLastProjectId,
+  getLastProjectId,
+} from '../utils/projectStorage';
+import { validateAndMigrateProject } from '../utils/projectValidation';
+
+export const INITIAL_CONNECTIONS: ConnectionEdge[] = [
+  {
+    id: 'edge_obj-filter-container:intake-chamber__obj-intake-pipe:coupling',
+    fromComponentId: 'obj-intake-pipe',
+    fromPortId: 'coupling',
+    toComponentId: 'obj-filter-container',
+    toPortId: 'intake-chamber',
+    createdAt: 1729000000000,
+  },
+];
+
+export const DEFAULT_PROJECT_METADATA: ProjectMetadata = {
+  id: 'proj_default_sump',
+  name: 'Multi-Chamber Filter Sump',
+  version: CURRENT_PROJECT_APP_VERSION,
+  schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  description: 'Multi-stage acrylic filter basin with biological media, submersible pump, and plumbing circuit.',
+};
+
+interface HistorySnapshot {
+  objects: EditorObject[];
+  connections: ConnectionEdge[];
+}
 
 interface EditorContextType {
+  // Project Persistence & Management
+  currentProject: ProjectMetadata;
+  isDirty: boolean;
+  setProjectName: (name: string) => void;
+  newProject: (force?: boolean) => boolean;
+  saveProject: () => Promise<boolean>;
+  saveProjectAs: (name: string) => Promise<boolean>;
+  openProject: (id: string, force?: boolean) => Promise<boolean>;
+  exportProjectFile: () => void;
+  importProjectFile: (file: File) => Promise<{ success: boolean; errors?: string[]; warnings?: string[] }>;
+  listSavedProjects: () => Promise<ProjectStorageItem[]>;
+  deleteSavedProject: (id: string) => Promise<void>;
+  pendingUnsavedAction: (() => void) | null;
+  setPendingUnsavedAction: (action: (() => void) | null) => void;
+  executePendingUnsavedAction: () => void;
+  clearPendingUnsavedAction: () => void;
+
   // Scene Objects & Selection
   objects: EditorObject[];
   selectedId: string | null;
@@ -38,6 +113,21 @@ interface EditorContextType {
   deleteObject: (id: string) => void;
   duplicateObject: (id: string) => void;
   addComponentFromLibrary: (template: ComponentTemplate, dropPosition?: Vector3D) => void;
+
+  // Connection Graph & Plumbing Ports
+  connections: ConnectionEdge[];
+  activeConnectingPort: { componentId: string; portId: string } | null;
+  connectPorts: (
+    fromComponentId: string,
+    fromPortId: string,
+    toComponentId: string,
+    toPortId: string
+  ) => { success: boolean; message?: string };
+  disconnectPorts: (componentId: string, portId: string) => void;
+  removeConnection: (edgeId: string) => void;
+  startConnecting: (componentId: string, portId: string) => void;
+  cancelConnecting: () => void;
+  graphAnalysis: GraphAnalysis;
 
   // Transform Gizmo & Snapping
   transformMode: TransformMode;
@@ -100,9 +190,21 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     scaleSnap: 0.1,
   });
 
-  // Undo / Redo history
-  const [history, setHistory] = useState<EditorObject[][]>([]);
-  const [future, setFuture] = useState<EditorObject[][]>([]);
+  // Project Persistence & State
+  const [currentProject, setCurrentProject] = useState<ProjectMetadata>(DEFAULT_PROJECT_METADATA);
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [pendingUnsavedAction, setPendingUnsavedAction] = useState<(() => void) | null>(null);
+
+  // Connection Graph & Plumbing State
+  const [connections, setConnections] = useState<ConnectionEdge[]>(INITIAL_CONNECTIONS);
+  const [activeConnectingPort, setActiveConnectingPort] = useState<{
+    componentId: string;
+    portId: string;
+  } | null>(null);
+
+  // Undo / Redo history with full snapshot of objects and connection topology
+  const [history, setHistory] = useState<HistorySnapshot[]>([]);
+  const [future, setFuture] = useState<HistorySnapshot[]>([]);
 
   // Simulation State
   const [simulation, setSimulation] = useState<SimulationState>({
@@ -135,10 +237,17 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   });
 
   // Helper to commit current state to undo history
-  const pushHistory = useCallback((currentObjects: EditorObject[]) => {
-    setHistory((prev) => [...prev.slice(-MAX_HISTORY), currentObjects]);
-    setFuture([]);
-  }, []);
+  const pushHistory = useCallback(
+    (currentObjects: EditorObject[], currentConnections: ConnectionEdge[]) => {
+      setHistory((prev) => [
+        ...prev.slice(-MAX_HISTORY),
+        { objects: currentObjects, connections: currentConnections },
+      ]);
+      setFuture([]);
+      setIsDirty(true);
+    },
+    []
+  );
 
   // Calculate live turnover when filters change
   const totalFlowGPH = useMemo(() => {
@@ -183,7 +292,6 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
       const target = objects.find((o) => o.id === id);
       if (!target || !target.visible) {
-        // Do not select hidden objects
         return;
       }
       setSelectedId(id);
@@ -199,14 +307,14 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return objects.find((obj) => obj.id === selectedId) || null;
   }, [objects, selectedId]);
 
-  // Object Property Updates (support optional skipHistory for dragging, commit on finish)
+  // Object Property Updates with Real-time Plumbing Kinematic Synchronization
   const updateObject = useCallback(
     (id: string, updates: Partial<EditorObject>, skipHistory: boolean = false) => {
       if (!skipHistory) {
-        pushHistory(objects);
+        pushHistory(objects, connections);
       }
-      setObjects((prev) =>
-        prev.map((obj) => {
+      setObjects((prev) => {
+        const updated = prev.map((obj) => {
           if (obj.id !== id) return obj;
           return {
             ...obj,
@@ -227,21 +335,23 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               ? { ...obj.parameters, ...updates.parameters }
               : obj.parameters,
           };
-        })
-      );
+        });
+
+        // Automatically update pipe endpoints when connected components move
+        return updateConnectedPlumbing(id, updated, connections);
+      });
     },
-    [objects, pushHistory]
+    [objects, connections, pushHistory]
   );
 
   // Toggle Object Visibility
   const toggleVisibility = useCallback(
     (id: string) => {
-      pushHistory(objects);
+      pushHistory(objects, connections);
       setObjects((prev) =>
         prev.map((obj) => {
           if (obj.id === id) {
             const nextVis = !obj.visible;
-            // If turning off visibility and it's selected, deselect
             if (!nextVis && selectedId === id) {
               setSelectedId(null);
             }
@@ -251,48 +361,50 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         })
       );
     },
-    [objects, selectedId, pushHistory]
+    [objects, connections, selectedId, pushHistory]
   );
 
   // Toggle Object Lock
   const toggleLock = useCallback(
     (id: string) => {
-      pushHistory(objects);
+      pushHistory(objects, connections);
       setObjects((prev) =>
         prev.map((obj) =>
           obj.id === id ? { ...obj, locked: !obj.locked } : obj
         )
       );
     },
-    [objects, pushHistory]
+    [objects, connections, pushHistory]
   );
 
-  // Delete Object
+  // Delete Object (removes all connected edges as well)
   const deleteObject = useCallback(
     (id: string) => {
       const target = objects.find((o) => o.id === id);
-      if (target?.locked) return; // Prevent deleting locked objects
+      if (target?.locked) return;
 
-      pushHistory(objects);
+      pushHistory(objects, connections);
       setObjects((prev) => prev.filter((obj) => obj.id !== id));
+      setConnections((prev) => removeEdgesForComponent(prev, id));
       if (selectedId === id) setSelectedId(null);
+      if (activeConnectingPort?.componentId === id) setActiveConnectingPort(null);
     },
-    [objects, selectedId, pushHistory]
+    [objects, connections, selectedId, activeConnectingPort, pushHistory]
   );
 
-  // Duplicate Object
+  // Duplicate Object (clones start with disconnected ports to prevent accidental duplicates)
   const duplicateObject = useCallback(
     (id: string) => {
       const target = objects.find((o) => o.id === id);
       if (!target) return;
 
-      pushHistory(objects);
+      pushHistory(objects, connections);
       const newId = `${target.id}-copy-${Date.now().toString(36)}`;
       const duplicated: EditorObject = {
         ...target,
         id: newId,
         name: `${target.name} (Copy)`,
-        locked: false, // Clones are unlocked by default
+        locked: false,
         position: {
           x: parseFloat((target.position.x + 0.35).toFixed(2)),
           y: parseFloat((target.position.y).toFixed(2)),
@@ -307,13 +419,13 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setObjects((prev) => [...prev, duplicated]);
       setSelectedId(newId);
     },
-    [objects, pushHistory]
+    [objects, connections, pushHistory]
   );
 
   // Add Component From Library
   const addComponentFromLibrary = useCallback(
     (template: ComponentTemplate, dropPosition?: Vector3D) => {
-      pushHistory(objects);
+      pushHistory(objects, connections);
       const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
       const newId = `obj-${template.componentType || template.category}-${uniqueSuffix}`;
 
@@ -331,7 +443,6 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             : parseFloat(dropPosition.z.toFixed(2)),
         };
       } else {
-        // Predictable staging position right above tank center, staggered neatly
         const dynamicItems = objects.filter((o) => o.componentType);
         const count = dynamicItems.length;
         const col = count % 4;
@@ -360,25 +471,127 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setObjects((prev) => [...prev, newObject]);
       setSelectedId(newId);
     },
-    [objects, snapSettings, pushHistory]
+    [objects, connections, snapSettings, pushHistory]
   );
+
+  // =========================================================================
+  // CONNECTION SYSTEM API (Connect, Disconnect, Validate, Diagnostics)
+  // =========================================================================
+
+  const startConnecting = useCallback((componentId: string, portId: string) => {
+    setActiveConnectingPort({ componentId, portId });
+  }, []);
+
+  const cancelConnecting = useCallback(() => {
+    setActiveConnectingPort(null);
+  }, []);
+
+  const connectPorts = useCallback(
+    (
+      fromComponentId: string,
+      fromPortId: string,
+      toComponentId: string,
+      toPortId: string
+    ): { success: boolean; message?: string } => {
+      const fromObj = objects.find((o) => o.id === fromComponentId);
+      const toObj = objects.find((o) => o.id === toComponentId);
+      if (!fromObj || !toObj) {
+        return { success: false, message: 'Component not found.' };
+      }
+
+      const fromPorts = getComponentPorts(fromObj);
+      const toPorts = getComponentPorts(toObj);
+      const fromPort = fromPorts.find((p) => p.id === fromPortId);
+      const toPort = toPorts.find((p) => p.id === toPortId);
+
+      if (!fromPort || !toPort) {
+        return { success: false, message: 'Invalid port ID.' };
+      }
+
+      const validation = validateConnection(
+        fromObj,
+        fromPort,
+        toObj,
+        toPort,
+        connections
+      );
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: validation.issue?.message || 'Invalid connection.',
+        };
+      }
+
+      pushHistory(objects, connections);
+
+      const newEdge = createConnectionEdge(
+        fromComponentId,
+        fromPortId,
+        toComponentId,
+        toPortId
+      );
+      const nextConnections = [...connections, newEdge];
+      setConnections(nextConnections);
+      setActiveConnectingPort(null);
+
+      // Instantly synchronize visual 3D plumbing alignment
+      setObjects((prev) => {
+        let synchronized = updateConnectedPlumbing(toComponentId, prev, nextConnections);
+        synchronized = updateConnectedPlumbing(fromComponentId, synchronized, nextConnections);
+        return synchronized;
+      });
+
+      return { success: true };
+    },
+    [objects, connections, pushHistory]
+  );
+
+  const disconnectPorts = useCallback(
+    (componentId: string, portId: string) => {
+      const edge = findEdgeForPort(connections, componentId, portId);
+      if (!edge) return;
+
+      pushHistory(objects, connections);
+      setConnections((prev) => prev.filter((e) => e.id !== edge.id));
+    },
+    [connections, objects, pushHistory]
+  );
+
+  const removeConnection = useCallback(
+    (edgeId: string) => {
+      pushHistory(objects, connections);
+      setConnections((prev) => prev.filter((e) => e.id !== edgeId));
+    },
+    [connections, objects, pushHistory]
+  );
+
+  // Graph Analysis & Topology Check
+  const graphAnalysis = useMemo(() => {
+    return analyzeConnectionGraph(objects, connections);
+  }, [objects, connections]);
 
   // Undo / Redo
   const undo = useCallback(() => {
     if (history.length === 0) return;
     const previous = history[history.length - 1];
     setHistory((prev) => prev.slice(0, prev.length - 1));
-    setFuture((prev) => [objects, ...prev]);
-    setObjects(previous);
-  }, [history, objects]);
+    setFuture((prev) => [{ objects, connections }, ...prev]);
+    setObjects(previous.objects);
+    setConnections(previous.connections);
+    setActiveConnectingPort(null);
+    setIsDirty(true);
+  }, [history, objects, connections]);
 
   const redo = useCallback(() => {
     if (future.length === 0) return;
     const next = future[0];
     setFuture((prev) => prev.slice(1));
-    setHistory((prev) => [...prev, objects]);
-    setObjects(next);
-  }, [future, objects]);
+    setHistory((prev) => [...prev, { objects, connections }]);
+    setObjects(next.objects);
+    setConnections(next.connections);
+    setActiveConnectingPort(null);
+    setIsDirty(true);
+  }, [future, objects, connections]);
 
   // Snapping Toggle
   const toggleSnap = useCallback(() => {
@@ -456,10 +669,12 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const resetScene = useCallback(() => {
-    pushHistory(objects);
+    pushHistory(objects, connections);
     setObjects(INITIAL_SCENE_OBJECTS);
+    setConnections(INITIAL_CONNECTIONS);
+    setActiveConnectingPort(null);
     setSelectedId('obj-filter-container');
-  }, [objects, pushHistory]);
+  }, [objects, connections, pushHistory]);
 
   // Metric unit and Container view mode handlers
   const setMetricUnit = useCallback((unit: MetricUnit) => {
@@ -476,7 +691,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const container = objects.find((o) => o.id === containerId);
       if (!container) return;
 
-      pushHistory(objects);
+      pushHistory(objects, connections);
 
       const result = resizeContainerAndDividers(container, objects, newDimensions);
 
@@ -494,7 +709,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       setObjects((prev) => {
-        return prev.map((obj) => {
+        const intermediate = prev.map((obj) => {
           if (obj.id === containerId) return result.updatedContainer;
           const updatedDiv = result.updatedDividers.find((d) => d.id === obj.id);
           if (updatedDiv) return updatedDiv;
@@ -503,9 +718,12 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           }
           return obj;
         });
+
+        // Recompute connected plumbing to new container dimensions
+        return updateConnectedPlumbing(containerId, intermediate, connections);
       });
     },
-    [objects, pushHistory]
+    [objects, connections, pushHistory]
   );
 
   // Add a divider inside the container's widest chamber
@@ -514,7 +732,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const container = objects.find((o) => o.id === containerId);
       if (!container) return;
 
-      pushHistory(objects);
+      pushHistory(objects, connections);
 
       const placement = getNewDividerPosition(container, objects);
       const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -547,33 +765,329 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setObjects((prev) => [...prev, newDivider]);
       setSelectedId(dividerId);
     },
-    [objects, pushHistory]
+    [objects, connections, pushHistory]
   );
 
-  const exportProjectJSON = useCallback(() => {
-    const data = {
-      project: 'Aquarium Filter Simulator',
-      version: '0.1.0',
-      exportedAt: new Date().toISOString(),
+  // =========================================================================
+  // PROJECT PERSISTENCE & FILE MANAGEMENT API
+  // =========================================================================
+
+  const setProjectName = useCallback((name: string) => {
+    setCurrentProject((prev) => ({ ...prev, name: name.trim() || 'Untitled Project' }));
+    setIsDirty(true);
+  }, []);
+
+  const newProject = useCallback(
+    (force: boolean = false): boolean => {
+      if (isDirty && !force) {
+        setPendingUnsavedAction(() => () => newProject(true));
+        return false;
+      }
+      const newMeta: ProjectMetadata = {
+        id: `proj_${Date.now()}`,
+        name: 'New Aquarium Filter Project',
+        version: CURRENT_PROJECT_APP_VERSION,
+        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        description: 'New custom aquarium filter design.',
+      };
+      setObjects(INITIAL_SCENE_OBJECTS);
+      setConnections(INITIAL_CONNECTIONS);
+      setCurrentProject(newMeta);
+      setSelectedId('obj-filter-container');
+      setActiveConnectingPort(null);
+      setHistory([]);
+      setFuture([]);
+      setIsDirty(false);
+      clearDraftFromStorage();
+      setLastProjectId(newMeta.id);
+      return true;
+    },
+    [isDirty]
+  );
+
+  const saveProject = useCallback(async (): Promise<boolean> => {
+    const now = new Date().toISOString();
+    const updatedMeta: ProjectMetadata = {
+      ...currentProject,
+      updatedAt: now,
+    };
+    const projectData: ProjectData = {
+      metadata: updatedMeta,
       viewportSettings,
       simulation,
       objects,
+      connections,
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
+    await saveProjectToStorage(projectData);
+    await setLastProjectId(updatedMeta.id);
+    await clearDraftFromStorage();
+    setCurrentProject(updatedMeta);
+    setIsDirty(false);
+    return true;
+  }, [currentProject, viewportSettings, simulation, objects, connections]);
+
+  const saveProjectAs = useCallback(
+    async (name: string): Promise<boolean> => {
+      const now = new Date().toISOString();
+      const newId = `proj_${Date.now()}`;
+      const updatedMeta: ProjectMetadata = {
+        ...currentProject,
+        id: newId,
+        name: name.trim() || 'Untitled Filter Project',
+        createdAt: now,
+        updatedAt: now,
+      };
+      const projectData: ProjectData = {
+        metadata: updatedMeta,
+        viewportSettings,
+        simulation,
+        objects,
+        connections,
+      };
+      await saveProjectToStorage(projectData);
+      await setLastProjectId(newId);
+      await clearDraftFromStorage();
+      setCurrentProject(updatedMeta);
+      setIsDirty(false);
+      return true;
+    },
+    [currentProject, viewportSettings, simulation, objects, connections]
+  );
+
+  const openProject = useCallback(
+    async (id: string, force: boolean = false): Promise<boolean> => {
+      if (isDirty && !force) {
+        setPendingUnsavedAction(() => () => openProject(id, true));
+        return false;
+      }
+      const saved = await getProjectFromStorage(id);
+      if (!saved) return false;
+      const validation = validateAndMigrateProject(saved);
+      if (!validation.isValid || !validation.project) return false;
+
+      const p = validation.project;
+      setObjects(p.objects);
+      setConnections(p.connections);
+      setViewportSettings(p.viewportSettings);
+      setSimulation(p.simulation);
+      setCurrentProject(p.metadata);
+      setSelectedId(p.objects[0]?.id || null);
+      setActiveConnectingPort(null);
+      setHistory([]);
+      setFuture([]);
+      setIsDirty(false);
+      await setLastProjectId(p.metadata.id);
+      await clearDraftFromStorage();
+      return true;
+    },
+    [isDirty]
+  );
+
+  const exportProjectFile = useCallback(() => {
+    const now = new Date().toISOString();
+    const exportMeta: ProjectMetadata = {
+      ...currentProject,
+      updatedAt: now,
+    };
+    const projectData: ProjectData = {
+      metadata: exportMeta,
+      viewportSettings,
+      simulation,
+      objects,
+      connections,
+    };
+    const blob = new Blob([JSON.stringify(projectData, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `aquarium-sim-project-${Date.now()}.json`;
+    const safeName = (currentProject.name || 'filter-project')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '_');
+    link.download = `${safeName}.aquasim`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [objects, viewportSettings, simulation]);
+  }, [currentProject, viewportSettings, simulation, objects, connections]);
+
+  const importProjectFile = useCallback(
+    async (
+      file: File
+    ): Promise<{ success: boolean; errors?: string[]; warnings?: string[] }> => {
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const validation = validateAndMigrateProject(json);
+        if (!validation.isValid || !validation.project) {
+          return {
+            success: false,
+            errors: validation.errors,
+            warnings: validation.warnings,
+          };
+        }
+
+        const p = validation.project;
+        setObjects(p.objects);
+        setConnections(p.connections);
+        setViewportSettings(p.viewportSettings);
+        setSimulation(p.simulation);
+        setCurrentProject(p.metadata);
+        setSelectedId(p.objects[0]?.id || null);
+        setActiveConnectingPort(null);
+        setHistory([]);
+        setFuture([]);
+        setIsDirty(false);
+
+        // Auto-save imported file to local storage library
+        await saveProjectToStorage(p);
+        await setLastProjectId(p.metadata.id);
+        await clearDraftFromStorage();
+
+        return {
+          success: true,
+          warnings: validation.warnings,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          errors: [err.message || 'Failed to read or parse project file.'],
+        };
+      }
+    },
+    []
+  );
+
+  const listSavedProjects = useCallback(async (): Promise<ProjectStorageItem[]> => {
+    return listProjectsFromStorage();
+  }, []);
+
+  const deleteSavedProject = useCallback(
+    async (id: string): Promise<void> => {
+      await deleteProjectFromStorage(id);
+      if (currentProject.id === id) {
+        const fallbackMeta: ProjectMetadata = {
+          ...DEFAULT_PROJECT_METADATA,
+          id: `proj_${Date.now()}`,
+        };
+        setCurrentProject(fallbackMeta);
+        await setLastProjectId(null);
+      }
+    },
+    [currentProject.id]
+  );
+
+  const executePendingUnsavedAction = useCallback(() => {
+    if (pendingUnsavedAction) {
+      const action = pendingUnsavedAction;
+      setPendingUnsavedAction(null);
+      action();
+    }
+  }, [pendingUnsavedAction]);
+
+  const clearPendingUnsavedAction = useCallback(() => {
+    setPendingUnsavedAction(null);
+  }, []);
+
+  const exportProjectJSON = useCallback(() => {
+    exportProjectFile();
+  }, [exportProjectFile]);
+
+  // Warn before discarding unsaved changes on browser close/refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Initial load: Restore last active project or auto-saved draft from storage
+  useEffect(() => {
+    let isMounted = true;
+    async function restoreSession() {
+      try {
+        const lastId = await getLastProjectId();
+        if (lastId) {
+          const saved = await getProjectFromStorage(lastId);
+          if (saved && isMounted) {
+            const val = validateAndMigrateProject(saved);
+            if (val.isValid && val.project) {
+              setObjects(val.project.objects);
+              setConnections(val.project.connections);
+              setViewportSettings(val.project.viewportSettings);
+              setSimulation(val.project.simulation);
+              setCurrentProject(val.project.metadata);
+              setSelectedId(val.project.objects[0]?.id || null);
+              setIsDirty(false);
+              return;
+            }
+          }
+        }
+
+        const draft = await getDraftFromStorage();
+        if (draft && isMounted) {
+          const val = validateAndMigrateProject(draft);
+          if (val.isValid && val.project) {
+            setObjects(val.project.objects);
+            setConnections(val.project.connections);
+            setViewportSettings(val.project.viewportSettings);
+            setSimulation(val.project.simulation);
+            setCurrentProject(val.project.metadata);
+            setSelectedId(val.project.objects[0]?.id || null);
+            setIsDirty(false);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to restore previous session:', err);
+      }
+    }
+    restoreSession();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Debounced auto-save draft to IndexedDB when dirty
+  useEffect(() => {
+    if (!isDirty) return;
+    const timer = setTimeout(() => {
+      const draftData: ProjectData = {
+        metadata: {
+          ...currentProject,
+          updatedAt: new Date().toISOString(),
+        },
+        viewportSettings,
+        simulation,
+        objects,
+        connections,
+      };
+      saveDraftToStorage(draftData);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [isDirty, objects, connections, viewportSettings, simulation, currentProject]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts if active element is an input/textarea
+      // Save Shortcut (Ctrl+S / Cmd+S)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveProject();
+        return;
+      }
+
+      // Cancel active connection mode on Escape
+      if (e.key === 'Escape' && activeConnectingPort) {
+        cancelConnecting();
+        return;
+      }
+
       if (
         document.activeElement?.tagName === 'INPUT' ||
         document.activeElement?.tagName === 'SELECT' ||
@@ -628,6 +1142,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    saveProject,
     undo,
     redo,
     duplicateObject,
@@ -636,6 +1151,8 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     toggleSimulation,
     toggleSnap,
     selectedId,
+    activeConnectingPort,
+    cancelConnecting,
   ]);
 
   return (
@@ -652,6 +1169,29 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         deleteObject,
         duplicateObject,
         addComponentFromLibrary,
+        connections,
+        activeConnectingPort,
+        connectPorts,
+        disconnectPorts,
+        removeConnection,
+        startConnecting,
+        cancelConnecting,
+        graphAnalysis,
+        currentProject,
+        isDirty,
+        setProjectName,
+        newProject,
+        saveProject,
+        saveProjectAs,
+        openProject,
+        exportProjectFile,
+        importProjectFile,
+        listSavedProjects,
+        deleteSavedProject,
+        pendingUnsavedAction,
+        setPendingUnsavedAction,
+        executePendingUnsavedAction,
+        clearPendingUnsavedAction,
         transformMode,
         setTransformMode,
         snapSettings,

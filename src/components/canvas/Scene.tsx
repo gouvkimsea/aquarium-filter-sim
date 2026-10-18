@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useEditor } from '../../context/EditorContext';
 import type { EditorObject } from '../../types/editor';
 import { ReusableFilterMesh } from './components/FilterComponents';
+import { PortVisualizer } from './components/PortVisualizer';
 
 // Selection Highlight Bounding Box
 const SelectionHighlight: React.FC<{ object: EditorObject }> = ({ object }) => {
@@ -710,6 +711,8 @@ export const Scene: React.FC = () => {
           />
         </group>
       ))}
+      {/* 3D Connection Ports & Dynamic Plumbing Visualizer */}
+      <PortVisualizer />
     </group>
   );
 };

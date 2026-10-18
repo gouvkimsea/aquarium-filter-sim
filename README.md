@@ -35,6 +35,30 @@ Whether you are an aquarist designing the optimal canister filtration flow, a st
 
 ---
 
+- **Local Project Persistence & File Export System**:
+  - **Versioned Project JSON Schema (`schemaVersion: 1`)**: Complete state preservation including container dimensions, component definitions, instance IDs, 3D transforms, connection graph edges, fluid simulation state, and custom component parameters.
+  - **Browser IndexedDB Storage**: High-capacity local persistence using dual object stores (`projects` and `appState`), with seamless fallback to `localStorage`.
+  - **CAD Project Actions**:
+    - **New Project**: Clean canvas initialization with unsaved changes verification.
+    - **Save (`Ctrl+S`)**: Instant one-click persistence to IndexedDB with visual checkmark feedback.
+    - **Save As...**: Name, describe, and branch designs into discrete project records.
+    - **Open Project Library...**: Interactive modal with project cards, timestamps, object counts, connection counts, one-click load, disk export, and project deletion.
+    - **Export Project File**: Standalone `.aquasim` and `.json` file downloads for sharing or archiving.
+    - **Import Project File**: Instant drag-and-drop or file-picker import with thorough structural schema validation.
+  - **Schema Validation & Migration Engine**:
+    - Robust validator checking component geometry, parameters, and port connection integrity.
+    - Automatic migration of legacy unversioned project files into modern versioned format.
+    - Graceful error recovery: safely heals corrupted numerical dimensions ($NaN$ recovery) and flags missing components without crashing the application.
+  - **Unsaved Changes Protection**:
+    - Project status pill in top toolbar indicating unsaved edits (`*`).
+    - CAD warning dialog prompting *Save & Continue*, *Discard & Continue*, or *Cancel*.
+    - Browser `beforeunload` guard preventing accidental tab closing or page refresh.
+  - **Automated Verification Test Suite**: Comprehensive headless test suite (`npm test`) covering 35 assertions on serialization, deserialization, connection stability, corruption healing, and undo/redo isolation.
+- **Filter Plumbing & Component Connection System**:
+  - **Named Connection Ports**: Inlets, outlets, suction couplings, discharge nozzles, and pipe sockets with authentic diameters and 3D normal vectors.
+  - **Magnetic Proximity Snapping**: Automatic endpoint snapping when dragging compatible fittings within proximity threshold.
+  - **Dynamic Plumbing Realignment**: Connected straight pipes and flexible hoses dynamically stretch and rotate to stay anchored when adjacent components move.
+  - **Topological Graph Model**: Edge graph (`edge_${fromComp}:${fromPort}__${toComp}:${toPort}`) tracking flow chains, open ports, and orphan connections.
 - **Custom Filter Geometry & Chamber Editing**:
   - **Precision Millimeter/Centimeter Sizing**: Configure filter container width, height, and depth directly in millimeters, centimeters, or inches with real-time conversion and strict boundary validation.
   - **Dynamic Geometry Recalculation**: Bottom base plate, front wall, rear wall, side walls, top rim flanges, and corner silicone seals automatically re-dimension without corrupting or deleting internal media.
@@ -209,14 +233,16 @@ aquarium-filter-sim/
 - [x] Desktop-first CAD interface layout (Toolbars, Sidebars, Viewport, Status Bar)
 - [x] Realistic 3D viewport with glass filter container & studio lighting
 - [x] Complete 3D object interaction system (Selection, Gizmos, Snapping, Undo/Redo)
+- [x] Reusable aquarium filter component library (12+ mechanical, biological, and plumbing components)
+- [x] Custom filter geometry & chamber editing (baffles, usable volume, transparent/opaque/cutaway modes)
+- [x] Plumbing connection graph & magnetic endpoint snapping
+- [x] Local project persistence (IndexedDB, draft recovery, project library, .aquasim / .json export & import)
 - [ ] Core numerical simulation engine (Ammonia $\to$ Nitrite $\to$ Nitrate)
 - [ ] Multi-stage filter media hydraulics & flow velocity simulation
 - [ ] Warning triggers (Ammonia spikes, oxygen depletion, filter overflows)
 - [ ] Exportable telemetry data (CSV / JSON log export)
 - [ ] Interactive UI with real-time parameter sliders (temp, bioload, filter flow)
 - [ ] Multiple filter configuration presets (HOB, Canister, Sponge, Sump)
-- [ ] Warning triggers (Ammonia spikes, oxygen depletion, filter overflows)
-- [ ] Exportable telemetry data (CSV / JSON log export)
 - [ ] 2D/3D visual cross-section of filter chamber water flow
 
 ---
