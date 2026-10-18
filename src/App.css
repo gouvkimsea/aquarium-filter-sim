@@ -2987,6 +2987,355 @@
   line-height: 1.4;
   margin: 0;
 }
+/* ========================================================================== */
+/* 3D WATER FLOW VISUALIZER & TELEMETRY HUD                                  */
+/* ========================================================================== */
 
+.flow-alert-3d-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(239, 68, 68, 0.7);
+  border-radius: 6px;
+  color: #fca5a5;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.4), 0 0 10px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: alertPulse 1.4s infinite ease-in-out;
+}
 
+@keyframes alertPulse {
+  0%, 100% { transform: scale(1); border-color: rgba(239, 68, 68, 0.6); }
+  50% { transform: scale(1.05); border-color: rgba(239, 68, 68, 1); box-shadow: 0 4px 22px rgba(239, 68, 68, 0.65); }
+}
+
+.flow-telemetry-hud {
+  width: 290px;
+  background: rgba(9, 14, 24, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.15);
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.flow-telemetry-hud:hover {
+  border-color: rgba(0, 245, 212, 0.6);
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.75), 0 0 25px rgba(0, 245, 212, 0.22);
+}
+
+.hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+}
+
+.hud-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+}
+
+.hud-tag-estimate {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 800;
+  background: rgba(245, 158, 11, 0.22);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.hud-toggle-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+  border-radius: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.hud-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.hud-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.hud-status-banner .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hud-status-banner.status-active {
+  background: rgba(0, 245, 212, 0.12);
+  border: 1px solid rgba(0, 245, 212, 0.45);
+  color: #00f5d4;
+}
+
+.hud-status-banner.status-active .status-dot {
+  background: #00f5d4;
+  box-shadow: 0 0 8px #00f5d4;
+  animation: blinkActive 1.6s infinite ease-in-out;
+}
+
+@keyframes blinkActive {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.hud-status-banner.status-paused {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
+.hud-status-banner.status-paused .status-dot {
+  background: #94a3b8;
+}
+
+.hud-status-banner.status-deadhead {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fcd34d;
+}
+
+.hud-status-banner.status-deadhead .status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+.hud-status-banner.status-disconnected,
+.hud-status-banner.status-nopump,
+.hud-status-banner.status-unsolved {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.hud-status-banner.status-disconnected .status-dot,
+.hud-status-banner.status-nopump .status-dot,
+.hud-status-banner.status-unsolved .status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.hud-transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hud-btn-play {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.hud-btn-play.running {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.hud-btn-play.running:hover {
+  background: rgba(239, 68, 68, 0.35);
+}
+
+.hud-btn-play.paused {
+  background: rgba(0, 245, 212, 0.2);
+  border-color: rgba(0, 245, 212, 0.5);
+  color: #00f5d4;
+}
+
+.hud-btn-play.paused:hover {
+  background: rgba(0, 245, 212, 0.35);
+}
+
+.hud-btn-reset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hud-btn-reset:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.hud-speed-group {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.hud-speed-pill {
+  padding: 2px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hud-speed-pill:hover {
+  color: #ffffff;
+}
+
+.hud-speed-pill.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+}
+
+.hud-details-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.hud-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.66rem;
+}
+
+.hud-metric-row .metric-label {
+  color: var(--text-dim);
+}
+
+.hud-metric-row .metric-value {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.hud-branches-box {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 5px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.branches-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.branch-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+}
+
+.branch-row .branch-name {
+  color: #cbd5e1;
+}
+
+.branch-row .branch-flow {
+  color: #00f5d4;
+}
+
+.hud-warnings-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hud-warning-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  background: rgba(245, 158, 11, 0.1);
+  border-left: 2px solid #f59e0b;
+  padding: 3px 6px;
+  font-size: 0.62rem;
+  color: #fcd34d;
+  line-height: 1.3;
+}
+
+.hud-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 5px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 0.58rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
 

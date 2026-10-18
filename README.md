@@ -240,6 +240,42 @@ graph LR
 
 ---
 
+## 🌊 Dynamic 3D Water-Flow Visualization
+
+The 3D viewport features a real-time, physics-driven fluid visualizer that animates water flow using the exact trajectories, directions, and flow rates computed by the 1D hydraulic simulation engine.
+
+```mermaid
+graph LR
+    Engine[Hydraulic Engine Results] -->|Solved Paths & Velocities| Trajectories[3D Catmull-Rom Splines]
+    Trajectories -->|Velocity Scaling v = Q / A| InstancedParticles[60 FPS THREE.InstancedMesh]
+    Trajectories -->|Port-to-Port Normal Vectors| Chevrons[Directional Flow Arrows]
+    Engine -->|Status Flags| Warnings[3D Disconnected Beacons & Telemetry HUD]
+```
+
+### Core Visualization Features
+1. **Dynamic Instanced 3D Particles (`THREE.InstancedMesh`)**:
+   - High-performance instanced capsules and directional flow arrows with zero garbage collection allocations in the animation loop.
+   - Preserves silky smooth 60 FPS performance on ordinary laptops with integrated graphics (draw calls capped at 1–2).
+2. **True Plumbing Following (Catmull-Rom Centripetal Splines)**:
+   - Does **not** use canned or pre-rendered animations. Water flows strictly through actual connected components, following physical 3D centerline trajectories through straight pipes, 90° swept elbow bends, and discharge nozzles.
+3. **Calculated Velocity Scaling ($v = Q / A$)**:
+   - Animation speed directly corresponds to relative calculated fluid velocities and operating flow rates.
+   - When flow encounters narrow restrictions or parallel splits, particles visually accelerate or decelerate in direct proportion to calculated local velocity.
+4. **Directional Flow Alignment**:
+   - Orientation chevrons and elongated droplet capsules dynamically orient themselves to the 3D unit tangent vector of each conduit segment ($\vec{T} = \frac{d\vec{r}}{ds}$).
+5. **Disconnected & Unsolved Path Diagnostics**:
+   - Open pump discharges, uncapped pipe ends, and stalled pumps display glowing red/amber 3D warning beacons (`AlertTriangle`) directly in the scene graph.
+6. **Transparent & Cutaway Inspection**:
+   - Water particles use depth-tuned emissive materials (`depthWrite: false`, `transparent: true`) so they remain clearly visible through clear acrylic walls and technical cutaway cross-section views.
+7. **Simulation Transport Controls**:
+   - Complete Start, Pause, Resume, Step (`+5m`), and Reset controls available both in the main CAD top toolbar and inside the viewport telemetry HUD.
+   - Speed multipliers (0.5x, 1.0x, 2.0x, 5.0x) for slow-motion or rapid inspection.
+8. **Glassmorphic Telemetry HUD**:
+   - Floating viewport HUD displaying real-time hydraulic metrics: Operating Flow ($L/h$ and $GPH$), Total Dynamic Head (TDH), Static Elevation Lift ($m$), Friction and Minor Losses ($m$), and parallel branch flow distribution.
+   - Clearly labeled with prominent **"Simplified Simulation (Illustrative Estimate)"** badges and technical disclaimers.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -319,12 +355,12 @@ aquarium-filter-sim/
 - [x] Plumbing connection graph & magnetic endpoint snapping
 - [x] Local project persistence (IndexedDB, draft recovery, project library, .aquasim / .json export & import)
 - [x] Multi-stage filter media hydraulics & flow velocity simulation (1D Darcy-Weisbach, Colebrook-White, pump curves, parallel branches)
+- [x] Dynamic 3D water-flow visualization & telemetry HUD (instanced particles, directional chevrons, velocity-proportional speed, cutaway views, and disconnected path alerts)
 - [ ] Core numerical simulation engine (Ammonia $\to$ Nitrite $\to$ Nitrate)
 - [ ] Warning triggers (Ammonia spikes, oxygen depletion, filter overflows)
 - [ ] Exportable telemetry data (CSV / JSON log export)
 - [ ] Interactive UI with real-time parameter sliders (temp, bioload, filter flow)
 - [ ] Multiple filter configuration presets (HOB, Canister, Sponge, Sump)
-- [ ] 2D/3D visual cross-section of filter chamber water flow
 
 ---
 

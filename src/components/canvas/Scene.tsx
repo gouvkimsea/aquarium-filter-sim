@@ -6,6 +6,7 @@ import { useEditor } from '../../context/EditorContext';
 import type { EditorObject } from '../../types/editor';
 import { ReusableFilterMesh } from './components/FilterComponents';
 import { PortVisualizer } from './components/PortVisualizer';
+import { WaterFlowVisualizer } from './components/WaterFlowVisualizer';
 
 // Selection Highlight Bounding Box
 const SelectionHighlight: React.FC<{ object: EditorObject }> = ({ object }) => {
@@ -713,6 +714,8 @@ export const Scene: React.FC = () => {
       ))}
       {/* 3D Connection Ports & Dynamic Plumbing Visualizer */}
       <PortVisualizer />
+      {/* 3D Physics-Driven Water Flow Trajectories & Telemetry HUD */}
+      <WaterFlowVisualizer />
     </group>
   );
 };

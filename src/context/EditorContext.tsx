@@ -56,6 +56,8 @@ import {
   getLastProjectId,
 } from '../utils/projectStorage';
 import { validateAndMigrateProject } from '../utils/projectValidation';
+import { simulateHydraulics } from '../simulation/hydraulic/hydraulicEngine';
+import type { HydraulicSimulationResult } from '../types/hydraulic';
 
 export const INITIAL_CONNECTIONS: ConnectionEdge[] = [
   {
@@ -128,6 +130,7 @@ interface EditorContextType {
   startConnecting: (componentId: string, portId: string) => void;
   cancelConnecting: () => void;
   graphAnalysis: GraphAnalysis;
+  hydraulicResult: HydraulicSimulationResult;
 
   // Transform Gizmo & Snapping
   transformMode: TransformMode;
@@ -569,6 +572,13 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const graphAnalysis = useMemo(() => {
     return analyzeConnectionGraph(objects, connections);
   }, [objects, connections]);
+
+  // Hydraulic Physics Simulation Engine
+  const hydraulicResult = useMemo(() => {
+    return simulateHydraulics(objects, connections, {
+      isOpenSump: viewportSettings.containerViewMode !== 'opaque',
+    });
+  }, [objects, connections, viewportSettings.containerViewMode]);
 
   // Undo / Redo
   const undo = useCallback(() => {
@@ -1177,6 +1187,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         startConnecting,
         cancelConnecting,
         graphAnalysis,
+        hydraulicResult,
         currentProject,
         isDirty,
         setProjectName,

@@ -48,6 +48,7 @@ export const TopToolbar: React.FC = () => {
     simulation,
     toggleSimulation,
     stepSimulation,
+    resetSimulation,
     setSimulationSpeed,
     viewportSettings,
     updateViewportSettings,
@@ -374,6 +375,16 @@ export const TopToolbar: React.FC = () => {
           >
             <SkipForward size={13} />
             <span>+5m</span>
+          </button>
+
+          <button
+            id="btn-reset-simulation"
+            className="transport-btn secondary"
+            onClick={resetSimulation}
+            title="Reset Simulation Cycle & Flow State"
+          >
+            <RotateCcw size={13} />
+            <span>RESET</span>
           </button>
 
           {/* Speed Multiplier Selectors */}
