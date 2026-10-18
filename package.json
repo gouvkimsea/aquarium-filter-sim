@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "tsx tests/verify_project_persistence.ts && tsx tests/hydraulicSimulation.test.ts && tsx tests/workflow_audit_test.ts",
+    "test": "tsx tests/verify_project_persistence.ts && tsx tests/hydraulicSimulation.test.ts && tsx tests/workflow_audit_test.ts && tsx tests/complete_functional_audit.ts",
     "test:hydraulic": "tsx tests/hydraulicSimulation.test.ts",
     "test:persistence": "tsx tests/verify_project_persistence.ts",
-    "test:workflow": "tsx tests/workflow_audit_test.ts"
+    "test:workflow": "tsx tests/workflow_audit_test.ts",
+    "test:audit": "tsx tests/complete_functional_audit.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

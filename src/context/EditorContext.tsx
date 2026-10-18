@@ -271,16 +271,40 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     []
   );
 
-  // Calculate live turnover when filters change
+  // Graph Analysis & Topology Check
+  const graphAnalysis = useMemo(() => {
+    return analyzeConnectionGraph(objects, connections);
+  }, [objects, connections]);
+
+  // Hydraulic Physics Simulation Engine
+  const hydraulicResult = useMemo(() => {
+    return simulateHydraulics(objects, connections, {
+      isOpenSump: viewportSettings.containerViewMode !== 'opaque',
+    });
+  }, [objects, connections, viewportSettings.containerViewMode]);
+
+  // Calculate live turnover when filters change or hydraulics is solved
   const totalFlowGPH = useMemo(() => {
+    if (hydraulicResult.operatingPoint && hydraulicResult.operatingPoint.flowRate.gph > 0) {
+      return Math.round(hydraulicResult.operatingPoint.flowRate.gph);
+    }
     return objects
-      .filter((obj) => obj.category === 'filter' && obj.visible)
+      .filter(
+        (obj) =>
+          (obj.category === 'filter' || obj.componentType === 'submersible-pump') &&
+          obj.visible
+      )
       .reduce((acc, obj) => {
-        const rate = (obj.parameters.flowRateGPH as number) || 0;
+        const rate =
+          typeof obj.parameters.flowRateGPH === 'number'
+            ? obj.parameters.flowRateGPH
+            : typeof obj.parameters.flowRate === 'number'
+              ? Math.round(obj.parameters.flowRate * 0.264172)
+              : 0;
         const motorOn = obj.parameters.motorStatus !== false;
         return acc + (motorOn ? rate : 0);
       }, 0);
-  }, [objects]);
+  }, [objects, hydraulicResult]);
 
   const calculatedTurnover = useMemo(() => {
     const tank = objects.find((o) => o.id === 'obj-tank-enclosure');
@@ -288,7 +312,21 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return gal > 0 ? parseFloat((totalFlowGPH / gal).toFixed(2)) : 0;
   }, [objects, totalFlowGPH]);
 
-  // Simulation tick loop
+  // Immediately synchronize hydraulic flow rate and turnover into simulation state
+  useEffect(() => {
+    setSimulation((prev) => {
+      if (prev.totalFlowGPH === totalFlowGPH && prev.calculatedTurnover === calculatedTurnover) {
+        return prev;
+      }
+      return {
+        ...prev,
+        totalFlowGPH,
+        calculatedTurnover,
+      };
+    });
+  }, [totalFlowGPH, calculatedTurnover]);
+
+  // Simulation tick loop (advances virtual time when running)
   useEffect(() => {
     if (!simulation.isRunning) return;
 
@@ -297,13 +335,11 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         ...prev,
         elapsedSeconds: prev.elapsedSeconds + 1,
         simulatedMinutes: prev.simulatedMinutes + prev.speed * 0.5,
-        totalFlowGPH,
-        calculatedTurnover,
       }));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [simulation.isRunning, simulation.speed, totalFlowGPH, calculatedTurnover]);
+  }, [simulation.isRunning, simulation.speed]);
 
   // Object Selection (Prevents selecting hidden objects)
   const selectObject = useCallback(
@@ -628,18 +664,6 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     [connections, objects, pushHistory]
   );
 
-  // Graph Analysis & Topology Check
-  const graphAnalysis = useMemo(() => {
-    return analyzeConnectionGraph(objects, connections);
-  }, [objects, connections]);
-
-  // Hydraulic Physics Simulation Engine
-  const hydraulicResult = useMemo(() => {
-    return simulateHydraulics(objects, connections, {
-      isOpenSump: viewportSettings.containerViewMode !== 'opaque',
-    });
-  }, [objects, connections, viewportSettings.containerViewMode]);
-
   // Undo / Redo
   const undo = useCallback(() => {
     if (history.length === 0) return;
@@ -649,8 +673,11 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setObjects(previous.objects);
     setConnections(previous.connections);
     setActiveConnectingPort(null);
+    if (selectedId && !previous.objects.some((o) => o.id === selectedId)) {
+      setSelectedId(null);
+    }
     setIsDirty(true);
-  }, [history, objects, connections]);
+  }, [history, objects, connections, selectedId]);
 
   const redo = useCallback(() => {
     if (future.length === 0) return;
@@ -660,8 +687,11 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setObjects(next.objects);
     setConnections(next.connections);
     setActiveConnectingPort(null);
+    if (selectedId && !next.objects.some((o) => o.id === selectedId)) {
+      setSelectedId(null);
+    }
     setIsDirty(true);
-  }, [future, objects, connections]);
+  }, [future, objects, connections, selectedId]);
 
   // Snapping Toggle
   const toggleSnap = useCallback(() => {
@@ -770,18 +800,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       const result = resizeContainerAndDividers(container, objects, newDimensions);
 
-      // Update simulation flow & turnover based on new capacity
-      const newCapacity = result.updatedContainer.parameters.capacityLiters as number;
-      if (typeof newCapacity === 'number' && newCapacity > 0) {
-        setSimulation((prev) => {
-          const flow = Math.round(newCapacity * 65);
-          return {
-            ...prev,
-            totalFlowGPH: flow,
-            calculatedTurnover: parseFloat((flow / 70).toFixed(1)),
-          };
-        });
-      }
+      // Note: totalFlowGPH & calculatedTurnover update dynamically via hydraulicResult and objects state
 
       setObjects((prev) => {
         const intermediate = prev.map((obj) => {
