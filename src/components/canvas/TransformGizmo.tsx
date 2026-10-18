@@ -3,6 +3,8 @@ import { TransformControls } from '@react-three/drei';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { useEditor } from '../../context/EditorContext';
+import { findNearbySnapPort } from '../../utils/connectionGraph';
+import type { EditorObject } from '../../types/editor';
 
 export const TransformGizmo: React.FC = () => {
   const {
@@ -10,6 +12,9 @@ export const TransformGizmo: React.FC = () => {
     transformMode,
     snapSettings,
     updateObject,
+    objects,
+    connections,
+    connectPorts,
   } = useEditor();
 
   const transformRef = useRef<TransformControlsImpl>(null);
@@ -57,7 +62,7 @@ export const TransformGizmo: React.FC = () => {
       // When dragging finishes, commit the new transform to EditorContext with undo history
       if (!event.value && targetRef.current && selectedObject) {
         const g = targetRef.current;
-        const newPos = {
+        let newPos = {
           x: parseFloat(g.position.x.toFixed(3)),
           y: parseFloat(g.position.y.toFixed(3)),
           z: parseFloat(g.position.z.toFixed(3)),
@@ -82,6 +87,35 @@ export const TransformGizmo: React.FC = () => {
 
         g.scale.set(1, 1, 1);
 
+        // Check for magnetic endpoint snapping to nearby compatible port
+        let snapCandidate: EditorObject = {
+          ...selectedObject,
+          position: newPos,
+          rotation: newRot,
+          dimensions: newDim,
+        };
+
+        if (transformMode === 'translate') {
+          const snapTarget = findNearbySnapPort(snapCandidate, objects, connections, 0.45);
+          if (snapTarget) {
+            newPos = snapTarget.snappedPosition;
+            g.position.set(newPos.x, newPos.y, newPos.z);
+            updateObject(selectedObject.id, {
+              position: newPos,
+              rotation: newRot,
+              dimensions: newDim,
+            });
+            // Automatically connect snapped endpoints together
+            connectPorts(
+              snapTarget.sourceObject.id,
+              snapTarget.sourcePort.id,
+              snapTarget.targetObject.id,
+              snapTarget.targetPort.id
+            );
+            return;
+          }
+        }
+
         updateObject(selectedObject.id, {
           position: newPos,
           rotation: newRot,
@@ -95,7 +129,7 @@ export const TransformGizmo: React.FC = () => {
     return () => {
       ctrl.removeEventListener('dragging-changed', handleDraggingChange);
     };
-  }, [selectedObject, updateObject]);
+  }, [selectedObject, updateObject, objects, connections, connectPorts, transformMode]);
 
   // If no object is selected, or object is hidden, or object is locked, do not render gizmo
   if (!selectedObject || !selectedObject.visible || selectedObject.locked) {

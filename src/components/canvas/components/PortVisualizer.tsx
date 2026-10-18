@@ -9,6 +9,7 @@ import {
   findEdgeForPort,
   getConnectedPartner,
   validateConnection,
+  findNearbySnapPort,
 } from '../../../utils/connectionGraph';
 import type { ConnectionPort, EditorObject } from '../../../types/editor';
 
@@ -171,18 +172,51 @@ export const PortVisualizer: React.FC = () => {
   }, [activeSourceObject, activeConnectingPort]);
 
   // Which objects should display ports?
-  // 1. If an object is selected, show its ports.
-  // 2. If activeConnectingPort is non-null, show ALL connectable objects' ports so user can click a target!
+  // 1. If activeConnectingPort is non-null, show ALL connectable objects' ports so user can click a target!
+  // 2. If an object is selected, show its ports, its connected partners' ports, and nearby compatible targets.
   const visiblePortObjects = useMemo(() => {
     if (activeConnectingPort) {
       return objects.filter((o) => o.visible && getComponentPorts(o).length > 0);
     }
     if (selectedObject && selectedObject.visible) {
       const ports = getComponentPorts(selectedObject);
-      if (ports.length > 0) return [selectedObject];
+      if (ports.length > 0) {
+        const partnerIds = new Set<string>();
+        connections.forEach((e) => {
+          if (e.fromComponentId === selectedObject.id) partnerIds.add(e.toComponentId);
+          if (e.toComponentId === selectedObject.id) partnerIds.add(e.fromComponentId);
+        });
+
+        // Also include nearby compatible objects within 1.2m
+        const nearbyIds = new Set<string>();
+        objects.forEach((o) => {
+          if (o.id !== selectedObject.id && o.visible && getComponentPorts(o).length > 0) {
+            const dx = o.position.x - selectedObject.position.x;
+            const dy = o.position.y - selectedObject.position.y;
+            const dz = o.position.z - selectedObject.position.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist < 1.2) {
+              nearbyIds.add(o.id);
+            }
+          }
+        });
+
+        return objects.filter(
+          (o) =>
+            o.id === selectedObject.id ||
+            partnerIds.has(o.id) ||
+            nearbyIds.has(o.id)
+        );
+      }
     }
     return [];
-  }, [objects, selectedObject, activeConnectingPort]);
+  }, [objects, selectedObject, connections, activeConnectingPort]);
+
+  // Magnetic Snapping Guide when an object is positioned near a compatible open port
+  const nearbySnap = useMemo(() => {
+    if (!selectedObject || activeConnectingPort) return null;
+    return findNearbySnapPort(selectedObject, objects, connections, 0.55);
+  }, [selectedObject, objects, connections, activeConnectingPort]);
 
   // Compute 3D spline lines for existing connection edges
   const connectionLines = useMemo(() => {
@@ -278,7 +312,55 @@ export const PortVisualizer: React.FC = () => {
         </group>
       ))}
 
-      {/* 2. Interactive Ports for Selected & Target Objects */}
+      {/* 2. Magnetic Snapping Guide Indicator */}
+      {nearbySnap && (
+        <group>
+          <Line
+            points={[
+              [nearbySnap.sourceWorldPos.x, nearbySnap.sourceWorldPos.y, nearbySnap.sourceWorldPos.z],
+              [nearbySnap.targetWorldPos.x, nearbySnap.targetWorldPos.y, nearbySnap.targetWorldPos.z],
+            ]}
+            color="#38bdf8"
+            lineWidth={4}
+            dashed
+            dashScale={12}
+            dashSize={0.08}
+            gapSize={0.05}
+          />
+          <Html
+            position={[
+              (nearbySnap.sourceWorldPos.x + nearbySnap.targetWorldPos.x) / 2,
+              (nearbySnap.sourceWorldPos.y + nearbySnap.targetWorldPos.y) / 2 + 0.08,
+              (nearbySnap.sourceWorldPos.z + nearbySnap.targetWorldPos.z) / 2,
+            ]}
+            center
+            distanceFactor={10}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div
+              style={{
+                backgroundColor: 'rgba(14, 165, 233, 0.95)',
+                color: '#fff',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+                border: '1px solid #7dd3fc',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>🧲 Magnetic Snap</span>
+              <span style={{ opacity: 0.85, fontSize: '10px' }}>({Math.round(nearbySnap.distance * 100)}cm)</span>
+            </div>
+          </Html>
+        </group>
+      )}
+
+      {/* 3. Interactive Ports for Selected & Target Objects */}
       {visiblePortObjects.map((obj) => {
         const ports = getComponentPorts(obj);
         return ports.map((port) => {

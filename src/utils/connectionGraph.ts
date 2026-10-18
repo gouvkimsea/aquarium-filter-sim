@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type {
   EditorObject,
   Vector3D,
@@ -279,8 +280,84 @@ export function getComponentPorts(object: EditorObject): ConnectionPort[] {
       ];
     }
 
-    default:
+    default: {
+      const objId = (object.id || '').toLowerCase();
+      const objName = (object.name || '').toLowerCase();
+
+      // Pressurized Canister Filters
+      if (objId.includes('canister') || objName.includes('canister')) {
+        return [
+          {
+            id: 'canister-inlet',
+            name: 'Canister Intake Hose Barb',
+            type: 'inlet',
+            direction: 'in',
+            localOffset: { x: -dimX * 0.25, y: dimY / 2 + 0.1, z: 0 },
+            normal: { x: 0, y: 1, z: 0 },
+            diameterMm: 16,
+          },
+          {
+            id: 'canister-outlet',
+            name: 'Canister Return Hose Barb',
+            type: 'outlet',
+            direction: 'out',
+            localOffset: { x: dimX * 0.25, y: dimY / 2 + 0.1, z: 0 },
+            normal: { x: 0, y: 1, z: 0 },
+            diameterMm: 16,
+          },
+        ];
+      }
+
+      // Hang-On-Back (HOB) Cascade Filters
+      if (objId.includes('hob') || objName.includes('hang-on') || objName.includes('hob')) {
+        return [
+          {
+            id: 'hob-intake',
+            name: 'HOB Intake Siphon Tube',
+            type: 'inlet',
+            direction: 'in',
+            localOffset: { x: -dimX * 0.3, y: -dimY / 2 - 0.1, z: 0 },
+            normal: { x: 0, y: -1, z: 0 },
+            diameterMm: 16,
+          },
+          {
+            id: 'hob-spillway',
+            name: 'HOB Overflow Spillway Waterfall',
+            type: 'outlet',
+            direction: 'out',
+            localOffset: { x: dimX * 0.15, y: dimY * 0.2, z: dimZ / 2 + 0.05 },
+            normal: { x: 0, y: 0, z: 1 },
+            diameterMm: 30,
+          },
+        ];
+      }
+
+      // Media category items (Activated carbon, chemical sachets, purigen)
+      if (object.category === 'media') {
+        return [
+          {
+            id: 'media-in',
+            name: 'Media Bed Inflow',
+            type: 'chamber',
+            direction: 'bidirectional',
+            localOffset: { x: 0, y: -dimY / 2, z: 0 },
+            normal: { x: 0, y: -1, z: 0 },
+            diameterMm: 25,
+          },
+          {
+            id: 'media-out',
+            name: 'Media Bed Outflow',
+            type: 'chamber',
+            direction: 'bidirectional',
+            localOffset: { x: 0, y: dimY / 2, z: 0 },
+            normal: { x: 0, y: 1, z: 0 },
+            diameterMm: 25,
+          },
+        ];
+      }
+
       return [];
+    }
   }
 }
 
@@ -506,150 +583,167 @@ export function removeEdgesForComponent(
  * Keeps the visual 3D plumbing and connection graph in 100% synchronization.
  */
 export function updateConnectedPlumbing(
-  movedObjectId: string,
+  initialMovedObjectOrId: string | EditorObject,
   allObjects: EditorObject[],
   edges: ConnectionEdge[]
 ): EditorObject[] {
+  const initialMovedObjectId =
+    typeof initialMovedObjectOrId === 'string'
+      ? initialMovedObjectOrId
+      : initialMovedObjectOrId.id;
+
   const objectMap = new Map<string, EditorObject>(
     allObjects.map((o) => [o.id, { ...o }])
   );
 
-  const movedObj = objectMap.get(movedObjectId);
-  if (!movedObj) return allObjects;
+  if (typeof initialMovedObjectOrId !== 'string') {
+    objectMap.set(initialMovedObjectOrId.id, { ...initialMovedObjectOrId });
+  }
 
-  // Find all edges connected directly or indirectly to the moved object
-  const relevantEdges = edges.filter(
-    (e) => e.fromComponentId === movedObjectId || e.toComponentId === movedObjectId
-  );
+  const queue = [initialMovedObjectId];
+  const processed = new Set<string>();
 
-  if (relevantEdges.length === 0) return allObjects;
+  while (queue.length > 0) {
+    const movedObjectId = queue.shift()!;
+    if (processed.has(movedObjectId)) continue;
+    processed.add(movedObjectId);
 
-  relevantEdges.forEach((edge) => {
-    // Determine the partner component
-    const partnerInfo =
-      edge.fromComponentId === movedObjectId
-        ? { id: edge.toComponentId, portId: edge.toPortId, myPortId: edge.fromPortId }
-        : { id: edge.fromComponentId, portId: edge.fromPortId, myPortId: edge.toPortId };
+    const movedObj = objectMap.get(movedObjectId);
+    if (!movedObj) continue;
 
-    const partnerObj = objectMap.get(partnerInfo.id);
-    if (!partnerObj) return;
+    // Find all edges connected directly to this moved object
+    const relevantEdges = edges.filter(
+      (e) => e.fromComponentId === movedObjectId || e.toComponentId === movedObjectId
+    );
 
-    // Check if the partner is a straight pipe or flexible hose that can dynamically stretch & align
-    const partnerType =
-      partnerObj.componentType || (partnerObj.parameters?.componentType as string);
+    if (relevantEdges.length === 0) continue;
 
-    if (partnerType === 'straight-pipe' || partnerType === 'flexible-hose') {
-      const partnerPorts = getComponentPorts(partnerObj);
-      const connectedPort = partnerPorts.find((p) => p.id === partnerInfo.portId);
-      const otherPort = partnerPorts.find((p) => p.id !== partnerInfo.portId);
+    relevantEdges.forEach((edge) => {
+      // Determine partner component
+      const partnerInfo =
+        edge.fromComponentId === movedObjectId
+          ? { id: edge.toComponentId, portId: edge.toPortId, myPortId: edge.fromPortId }
+          : { id: edge.fromComponentId, portId: edge.fromPortId, myPortId: edge.toPortId };
 
-      // Check if the other end of the pipe is also connected to something
-      const otherEdge = otherPort
-        ? findEdgeForPort(edges, partnerObj.id, otherPort.id)
-        : undefined;
+      const partnerObj = objectMap.get(partnerInfo.id);
+      if (!partnerObj) return;
 
-      if (otherEdge && otherPort) {
-        // CASE A: Both ends of the pipe are connected to components!
-        // Partner pipe spans directly between target 1 and target 2
-        const otherPartnerInfo = getConnectedPartner(otherEdge, partnerObj.id, otherPort.id);
-        const otherConnectedObj = otherPartnerInfo
-          ? objectMap.get(otherPartnerInfo.componentId)
+      const partnerType =
+        partnerObj.componentType || (partnerObj.parameters?.componentType as string);
+
+      let hasMutated = false;
+
+      if (partnerType === 'straight-pipe' || partnerType === 'flexible-hose') {
+        const partnerPorts = getComponentPorts(partnerObj);
+        const connectedPort = partnerPorts.find((p) => p.id === partnerInfo.portId);
+        const otherPort = partnerPorts.find((p) => p.id !== partnerInfo.portId);
+
+        const otherEdge = otherPort
+          ? findEdgeForPort(edges, partnerObj.id, otherPort.id)
           : undefined;
 
-        if (otherConnectedObj && otherPartnerInfo) {
+        if (otherEdge && otherPort) {
+          // CASE A: Both ends of the pipe are connected!
+          // Partner pipe spans directly between target 1 and target 2
+          const otherPartnerInfo = getConnectedPartner(otherEdge, partnerObj.id, otherPort.id);
+          const otherConnectedObj = otherPartnerInfo
+            ? objectMap.get(otherPartnerInfo.componentId)
+            : undefined;
+
+          if (otherConnectedObj && otherPartnerInfo) {
+            const myPorts = getComponentPorts(movedObj);
+            const myPort = myPorts.find((p) => p.id === partnerInfo.myPortId);
+
+            const otherTargetPorts = getComponentPorts(otherConnectedObj);
+            const otherTargetPort = otherTargetPorts.find(
+              (p) => p.id === otherPartnerInfo.portId
+            );
+
+            if (myPort && otherTargetPort) {
+              const posA = getWorldPortPosition(movedObj, myPort);
+              const posB = getWorldPortPosition(otherConnectedObj, otherTargetPort);
+
+              const midX = (posA.x + posB.x) / 2;
+              const midY = (posA.y + posB.y) / 2;
+              const midZ = (posA.z + posB.z) / 2;
+
+              const dx = posB.x - posA.x;
+              const dy = posB.y - posA.y;
+              const dz = posB.z - posA.z;
+              const dist = Math.max(0.15, Math.sqrt(dx * dx + dy * dy + dz * dz));
+
+              // Compute 3D Euler rotation aligning default Y-axis (0, 1, 0) to (dx, dy, dz)
+              const vUp = new THREE.Vector3(0, 1, 0);
+              const vDir = new THREE.Vector3(dx, dy, dz).normalize();
+              const q = new THREE.Quaternion().setFromUnitVectors(vUp, vDir);
+              const euler = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+
+              partnerObj.position = {
+                x: parseFloat(midX.toFixed(3)),
+                y: parseFloat(midY.toFixed(3)),
+                z: parseFloat(midZ.toFixed(3)),
+              };
+              partnerObj.dimensions = {
+                ...partnerObj.dimensions,
+                y: parseFloat(dist.toFixed(3)),
+              };
+              partnerObj.rotation = {
+                x: parseFloat(((euler.x * 180) / Math.PI).toFixed(2)),
+                y: parseFloat(((euler.y * 180) / Math.PI).toFixed(2)),
+                z: parseFloat(((euler.z * 180) / Math.PI).toFixed(2)),
+              };
+
+              objectMap.set(partnerObj.id, partnerObj);
+              hasMutated = true;
+            }
+          }
+        } else if (connectedPort) {
+          // CASE B: Only one end of the pipe is connected to movedObj
+          // Pipe translates so its connected port stays glued to movedObj's port
           const myPorts = getComponentPorts(movedObj);
           const myPort = myPorts.find((p) => p.id === partnerInfo.myPortId);
+          if (myPort) {
+            const targetWorldPos = getWorldPortPosition(movedObj, myPort);
+            const pipeRot = partnerObj.rotation || { x: 0, y: 0, z: 0 };
+            const rotatedPipeOffset = rotateVectorByEuler(connectedPort.localOffset, pipeRot);
 
-          const otherTargetPorts = getComponentPorts(otherConnectedObj);
-          const otherTargetPort = otherTargetPorts.find(
-            (p) => p.id === otherPartnerInfo.portId
-          );
-
-          if (myPort && otherTargetPort) {
-            // Get world position of both target anchor ports
-            const posA = getWorldPortPosition(movedObj, myPort);
-            const posB = getWorldPortPosition(otherConnectedObj, otherTargetPort);
-
-            // Compute midpoint, length, and orientation
-            const midX = (posA.x + posB.x) / 2;
-            const midY = (posA.y + posB.y) / 2;
-            const midZ = (posA.z + posB.z) / 2;
-
-            const dx = posB.x - posA.x;
-            const dy = posB.y - posA.y;
-            const dz = posB.z - posA.z;
-            const dist = Math.max(0.15, Math.sqrt(dx * dx + dy * dy + dz * dz));
-
-            // Direction unit vector from A to B
-            const dirX = dx / dist;
-            const dirY = dy / dist;
-            const dirZ = dz / dist;
-
-            // Compute Euler angles rotating default Y-axis (0, 1, 0) to (dirX, dirY, dirZ)
-            // Pitch around X: atan2(Z, Y)
-            // Yaw around Y: atan2(X, Z)
-            const pitchDeg = radToDeg(Math.atan2(Math.sqrt(dirX * dirX + dirZ * dirZ), dirY));
-            const yawDeg = radToDeg(Math.atan2(dirX, dirZ));
-
-            // Update pipe object
             partnerObj.position = {
-              x: parseFloat(midX.toFixed(3)),
-              y: parseFloat(midY.toFixed(3)),
-              z: parseFloat(midZ.toFixed(3)),
+              x: parseFloat((targetWorldPos.x - rotatedPipeOffset.x).toFixed(3)),
+              y: parseFloat((targetWorldPos.y - rotatedPipeOffset.y).toFixed(3)),
+              z: parseFloat((targetWorldPos.z - rotatedPipeOffset.z).toFixed(3)),
             };
-            partnerObj.dimensions = {
-              ...partnerObj.dimensions,
-              y: parseFloat(dist.toFixed(3)),
-            };
-            partnerObj.rotation = {
-              x: parseFloat(pitchDeg.toFixed(2)),
-              y: parseFloat(yawDeg.toFixed(2)),
-              z: 0,
-            };
-
             objectMap.set(partnerObj.id, partnerObj);
+            hasMutated = true;
           }
         }
-      } else if (connectedPort) {
-        // CASE B: Only one end of the pipe is connected to movedObj
-        // Pipe translates so its connected port stays glued to movedObj's port
+      } else if (partnerType === 'elbow-pipe') {
+        // For an elbow pipe, keep its connected socket anchored to the port
+        const elbowPorts = getComponentPorts(partnerObj);
+        const elbowPort = elbowPorts.find((p) => p.id === partnerInfo.portId);
         const myPorts = getComponentPorts(movedObj);
         const myPort = myPorts.find((p) => p.id === partnerInfo.myPortId);
-        if (myPort) {
+
+        if (elbowPort && myPort) {
           const targetWorldPos = getWorldPortPosition(movedObj, myPort);
-          // Local offset of the pipe's connected port rotated by pipe's current rotation
-          const pipeRot = partnerObj.rotation || { x: 0, y: 0, z: 0 };
-          const rotatedPipeOffset = rotateVectorByEuler(connectedPort.localOffset, pipeRot);
+          const elbowRot = partnerObj.rotation || { x: 0, y: 0, z: 0 };
+          const rotatedSocketOffset = rotateVectorByEuler(elbowPort.localOffset, elbowRot);
 
           partnerObj.position = {
-            x: parseFloat((targetWorldPos.x - rotatedPipeOffset.x).toFixed(3)),
-            y: parseFloat((targetWorldPos.y - rotatedPipeOffset.y).toFixed(3)),
-            z: parseFloat((targetWorldPos.z - rotatedPipeOffset.z).toFixed(3)),
+            x: parseFloat((targetWorldPos.x - rotatedSocketOffset.x).toFixed(3)),
+            y: parseFloat((targetWorldPos.y - rotatedSocketOffset.y).toFixed(3)),
+            z: parseFloat((targetWorldPos.z - rotatedSocketOffset.z).toFixed(3)),
           };
           objectMap.set(partnerObj.id, partnerObj);
+          hasMutated = true;
         }
       }
-    } else if (partnerType === 'elbow-pipe') {
-      // For an elbow pipe, keep its connected socket anchored to the port
-      const elbowPorts = getComponentPorts(partnerObj);
-      const elbowPort = elbowPorts.find((p) => p.id === partnerInfo.portId);
-      const myPorts = getComponentPorts(movedObj);
-      const myPort = myPorts.find((p) => p.id === partnerInfo.myPortId);
 
-      if (elbowPort && myPort) {
-        const targetWorldPos = getWorldPortPosition(movedObj, myPort);
-        const elbowRot = partnerObj.rotation || { x: 0, y: 0, z: 0 };
-        const rotatedSocketOffset = rotateVectorByEuler(elbowPort.localOffset, elbowRot);
-
-        partnerObj.position = {
-          x: parseFloat((targetWorldPos.x - rotatedSocketOffset.x).toFixed(3)),
-          y: parseFloat((targetWorldPos.y - rotatedSocketOffset.y).toFixed(3)),
-          z: parseFloat((targetWorldPos.z - rotatedSocketOffset.z).toFixed(3)),
-        };
-        objectMap.set(partnerObj.id, partnerObj);
+      // If the partner was updated, enqueue it so downstream components also update!
+      if (hasMutated && !processed.has(partnerObj.id)) {
+        queue.push(partnerObj.id);
       }
-    }
-  });
+    });
+  }
 
   return Array.from(objectMap.values());
 }
@@ -661,8 +755,10 @@ export function updateConnectedPlumbing(
 export interface SnapTarget {
   sourceObject: EditorObject;
   sourcePort: ConnectionPort;
+  sourceWorldPos: Vector3D;
   targetObject: EditorObject;
   targetPort: ConnectionPort;
+  targetWorldPos: Vector3D;
   distance: number;
   snappedPosition: Vector3D;
 }
@@ -723,8 +819,10 @@ export function findNearbySnapPort(
           bestSnap = {
             sourceObject: movingObj,
             sourcePort,
+            sourceWorldPos,
             targetObject: targetObj,
             targetPort,
+            targetWorldPos,
             distance: dist,
             snappedPosition: {
               x: parseFloat((targetWorldPos.x - rotatedSourceOffset.x).toFixed(3)),
@@ -808,6 +906,29 @@ export function analyzeConnectionGraph(
             componentId: obj.id,
             portId: port.id,
           });
+        } else if (
+          obj.componentType === 'straight-pipe' ||
+          obj.componentType === 'elbow-pipe' ||
+          obj.componentType === 'flexible-hose'
+        ) {
+          const oppositePortId =
+            port.id === 'port-a'
+              ? 'port-b'
+              : port.id === 'port-b'
+              ? 'port-a'
+              : port.id === 'socket-1'
+              ? 'socket-2'
+              : 'socket-1';
+          const hasConnectedOpposite = !!findEdgeForPort(validEdges, obj.id, oppositePortId);
+          if (hasConnectedOpposite) {
+            issues.push({
+              type: 'disconnected-port',
+              severity: 'warning',
+              message: `Terminating Pipe Socket: "${port.name}" on "${obj.name}" is open while the other end is connected. Water will escape here.`,
+              componentId: obj.id,
+              portId: port.id,
+            });
+          }
         }
       }
     });
@@ -825,6 +946,23 @@ export function analyzeConnectionGraph(
 
     adjacency.get(nodeA)!.push(nodeB);
     adjacency.get(nodeB)!.push(nodeA);
+  });
+
+  // Connect internal ports of components that conduct fluid (pipes, elbows, pumps, sumps, media)
+  objects.forEach((obj) => {
+    const ports = getComponentPorts(obj);
+    if (ports.length >= 2) {
+      for (let i = 0; i < ports.length; i++) {
+        for (let j = i + 1; j < ports.length; j++) {
+          const nodeA = `${obj.id}:${ports[i].id}`;
+          const nodeB = `${obj.id}:${ports[j].id}`;
+          if (!adjacency.has(nodeA)) adjacency.set(nodeA, []);
+          if (!adjacency.has(nodeB)) adjacency.set(nodeB, []);
+          adjacency.get(nodeA)!.push(nodeB);
+          adjacency.get(nodeB)!.push(nodeA);
+        }
+      }
+    }
   });
 
   // Trace connected chains from known sources (inlets, filter chambers)
